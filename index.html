@@ -40,8 +40,8 @@ const { useState, useEffect, useRef, useCallback } = React;
 // ═══════════════════════════════════════════════════════════════
 const SEED = {
   members: [
-    { id:"root",  fullName:"Mariyumma",    nickName:"",       gender:"F", dob:"1880", dobYearOnly:true,  branchId:null, parentId:null,  houseId:"H001", spouseId:"moosa", bio:"Matriarch of the family",              status:"deceased", dod:"1950-06-15", hijriDod:"1370-09-10", hijriAdj:0, email:"", whatsapp:"" },
-    { id:"moosa", fullName:"Moosa Haji",   nickName:"Haji",   gender:"M", dob:"1875", dobYearOnly:true,  branchId:null, parentId:null,  houseId:"H001", spouseId:"root",  bio:"Patriarch and founder of the family", status:"deceased", dod:"1948-03-20", hijriDod:"1367-05-10", hijriAdj:0, email:"", whatsapp:"" },
+    { id:"root",  fullName:"Mariyumma",    nickName:"",       gender:"F", dob:"1880", dobYearOnly:true,  branchId:null, parentId:null,  houseId:"H001", spouseId:"moosa", spouses:[{name:"Moosa Haji",id:"moosa"}], bio:"Matriarch of the family",              status:"deceased", dod:"1950-06-15", hijriDod:"1370-09-10", hijriAdj:0, email:"", whatsapp:"" },
+    { id:"moosa", fullName:"Moosa Haji",   nickName:"Haji",   gender:"M", dob:"1875", dobYearOnly:true,  branchId:null, parentId:null,  houseId:"H001", spouseId:"root",  spouses:[{name:"Mariyumma",id:"root"},{name:"Beevi",id:null}], bio:"Patriarch and founder of the family", status:"deceased", dod:"1948-03-20", hijriDod:"1367-05-10", hijriAdj:0, email:"", whatsapp:"" },
     { id:"p1",  fullName:"Abdul Rahman", nickName:"Abdu",   gender:"M", dob:"1910-05-12", dobYearOnly:false, branchId:1, parentId:"root", houseId:"H001", spouseId:null, bio:"", status:"deceased", dod:"1985-11-03", hijriDod:"1406-01-20", hijriAdj:0, email:"", whatsapp:"" },
     { id:"p2",  fullName:"Ismail",       nickName:"Ismail", gender:"M", dob:"1940-08-22", dobYearOnly:false, branchId:1, parentId:"p1",  houseId:"H001", spouseId:null, bio:"", status:"active",   dod:null, hijriDod:"", hijriAdj:0, email:"ismail@example.com", whatsapp:"+919876543210" },
     { id:"p3",  fullName:"Ahmed",        nickName:"Ahmed",  gender:"M", dob:"1965-03-15", dobYearOnly:false, branchId:1, parentId:"p2",  houseId:"H021", spouseId:null, bio:"Engineer based in Dubai", status:"active", dod:null, hijriDod:"", hijriAdj:0, email:"ahmed@example.com", whatsapp:"+971501234567" },
@@ -187,12 +187,34 @@ function Sheet({title,onClose,children,footer}) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// SPOUSE EDITOR — free text, multiple spouses
+// ═══════════════════════════════════════════════════════════════
+function SpouseEditor({spouses, onChange}) {
+  const list = spouses || [];
+  const add = () => onChange([...list, {name:"", id:null}]);
+  const remove = (i) => onChange(list.filter((_,j)=>j!==i));
+  const update = (i,val) => onChange(list.map((s,j)=>j===i?{...s,name:val}:s));
+  return (
+    <div>
+      {list.map((s,i)=>(
+        <div key={i} style={{display:"flex",gap:8,marginBottom:8,alignItems:"center"}}>
+          <input className="fi" value={s.name} onChange={e=>update(i,e.target.value)} placeholder={`Spouse ${i+1} name`} style={{flex:1}}/>
+          <button onClick={()=>remove(i)} style={{width:32,height:32,border:"1px solid #FECACA",borderRadius:8,background:"#FEF2F2",color:"#DC2626",cursor:"pointer",fontSize:16,flexShrink:0,fontFamily:"inherit"}}>✕</button>
+        </div>
+      ))}
+      <button onClick={add} style={{width:"100%",padding:"9px",border:"1.5px dashed #D8EDD4",borderRadius:8,background:"none",color:"#2D6A4F",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>+ Add Spouse</button>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
 // EDIT MEMBER MODAL
 // ═══════════════════════════════════════════════════════════════
 function EditMemberModal({member,branches,houses,members,onSave,onDelete,onClose,isNew,parentMember}) {
-  const blank={id:nid(),fullName:"",nickName:"",gender:"M",dob:"",dobYearOnly:false,branchId:parentMember?.branchId??null,parentId:parentMember?.id??null,houseId:"H001",spouseId:null,bio:"",status:"active",dod:null,hijriDod:"",hijriAdj:0,email:"",whatsapp:""};
-  // Ensure parentId is always correctly set from parentMember
+  const blank={id:nid(),fullName:"",nickName:"",gender:"M",dob:"",dobYearOnly:false,branchId:parentMember?.branchId??null,parentId:parentMember?.id??null,houseId:"H001",spouses:[],spouseIdx:0,bio:"",status:"active",dod:null,hijriDod:"",hijriAdj:0,email:"",whatsapp:""};
   if(blank.parentId===undefined) blank.parentId=null;
+  // Get parent's spouses list for spouseIdx selector
+  const parentSpouses = parentMember?.spouses||[];
   const [f,setF]=useState(member?{...member}:blank);
   const [tab,setTab]=useState("basic");
   const [confirmDel,setConfirmDel]=useState(false);
@@ -219,7 +241,14 @@ function EditMemberModal({member,branches,houses,members,onSave,onDelete,onClose
         <FG label="Gender"><FS value={f.gender} onChange={e=>set("gender",e.target.value)}><option value="M">Male</option><option value="F">Female</option></FS></FG>
         <FG label="Branch"><FS value={f.branchId??""} onChange={e=>set("branchId",e.target.value?Number(e.target.value):null)}><option value="">— Root / No Branch —</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name}{b.discontinued?" (discontinued)":""}</option>)}</FS></FG>
         <FG label="Parent"><FS value={f.parentId||""} onChange={e=>set("parentId",e.target.value||null)}><option value="">— No parent (root) —</option>{members.filter(m=>m.id!==f.id&&m.id!=="moosa").map(m=><option key={m.id} value={m.id}>{m.fullName}</option>)}</FS></FG>
-        <FG label="Spouse"><FS value={f.spouseId||""} onChange={e=>set("spouseId",e.target.value||null)}><option value="">— None —</option>{members.filter(m=>m.id!==f.id).map(m=><option key={m.id} value={m.id}>{m.fullName}</option>)}</FS></FG>
+        <FG label="Spouse(s)" hint="Type names freely. Add multiple spouses with + button.">
+          <SpouseEditor spouses={f.spouses||[]} onChange={v=>set("spouses",v)}/>
+        </FG>
+        {parentSpouses.length>1&&<FG label="Child of which spouse?" hint="Which of the parent's spouses is this child's mother/father?">
+          <FS value={f.spouseIdx||0} onChange={e=>set("spouseIdx",Number(e.target.value))}>
+            {parentSpouses.map((sp,i)=><option key={i} value={i}>{sp.name||`Spouse ${i+1}`}</option>)}
+          </FS>
+        </FG>}
         <FG label="Date of Birth">
           {f.dobYearOnly?<FI type="number" value={f.dob||""} onChange={e=>set("dob",e.target.value)} placeholder="e.g. 1950" min="1800" max="2025"/>:<FI type="date" value={f.dob||""} onChange={e=>set("dob",e.target.value)}/>}
           <label style={{display:"flex",alignItems:"center",gap:6,marginTop:6,fontSize:13,color:"#5C5B56",cursor:"pointer"}}><input type="checkbox" checked={!!f.dobYearOnly} onChange={e=>set("dobYearOnly",e.target.checked)}/> Year only</label>
@@ -252,48 +281,46 @@ function EditMemberModal({member,branches,houses,members,onSave,onDelete,onClose
 }
 
 // ═══════════════════════════════════════════════════════════════
-// VISUAL TREE
+// VISUAL TREE — Style 1: Root Centre, Spouses Left/Right, Female left / Male right
 // ═══════════════════════════════════════════════════════════════
-const NW=96, HGAP=18, VGAP=88;
+const NW=88, NH=90, HGAP=14, SGAP=20, VGAP=96;
+// NW=node width, HGAP=gap between siblings, SGAP=gap spouse to root, VGAP=vertical
 
-// ── Long-press context menu ──────────────────────────────────
+// ── Long-press context menu ───────────────────────────────────
 function ContextMenu({member,onAddChild,onEdit,onDelete,onClose}) {
   return (
-    <div style={{position:"fixed",inset:0,zIndex:800,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={onClose}>
-      <div style={{background:"#fff",borderRadius:18,padding:"6px 0",minWidth:220,boxShadow:"0 8px 40px rgba(0,0,0,.22)",border:"1px solid #E8E5DE",animation:"sheetUp .2s ease-out"}} onClick={e=>e.stopPropagation()}>
-        {/* Header */}
-        <div style={{padding:"12px 18px 10px",borderBottom:"1px solid #F4F3EF"}}>
-          <div style={{fontSize:13,fontWeight:700,color:"#1A1A18"}}>{member.fullName}</div>
-          {member.nickName&&<div style={{fontSize:11,color:"#9E9C94",marginTop:1}}>"{member.nickName}"</div>}
+    <div style={{position:"fixed",inset:0,zIndex:800,display:"flex",alignItems:"center",justifyContent:"center",background:"rgba(0,0,0,.4)"}} onClick={onClose}>
+      <div style={{background:"#fff",borderRadius:18,padding:"6px 0",minWidth:230,boxShadow:"0 8px 40px rgba(0,0,0,.22)",border:"1px solid #E8E5DE",animation:"sheetUp .2s ease-out"}} onClick={e=>e.stopPropagation()}>
+        <div style={{padding:"14px 18px 10px",borderBottom:"1px solid #F4F3EF"}}>
+          <div style={{fontSize:14,fontWeight:700,color:"#1A1A18",fontFamily:"'Playfair Display',serif"}}>{member.fullName}</div>
+          {member.nickName&&<div style={{fontSize:11,color:"#9E9C94",marginTop:2}}>"{member.nickName}"</div>}
+          <div style={{fontSize:11,color:"#9E9C94",marginTop:2}}>Hold card to open this menu</div>
         </div>
-        {/* Options */}
         <button onClick={()=>{onAddChild(member);onClose();}} style={{width:"100%",padding:"14px 18px",border:"none",background:"none",textAlign:"left",cursor:"pointer",fontSize:14,fontWeight:500,display:"flex",alignItems:"center",gap:12,color:"#1A1A18",fontFamily:"inherit"}}>
-          <span style={{width:32,height:32,borderRadius:8,background:"#D8EDD4",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>➕</span>
+          <span style={{width:34,height:34,borderRadius:8,background:"#D8EDD4",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>➕</span>
           Add child under {member.nickName||member.fullName.split(" ")[0]}
         </button>
         <button onClick={()=>{onEdit(member);onClose();}} style={{width:"100%",padding:"14px 18px",border:"none",background:"none",textAlign:"left",cursor:"pointer",fontSize:14,fontWeight:500,display:"flex",alignItems:"center",gap:12,color:"#1A1A18",fontFamily:"inherit"}}>
-          <span style={{width:32,height:32,borderRadius:8,background:"#EEF6F1",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>✏️</span>
-          Edit details
+          <span style={{width:34,height:34,borderRadius:8,background:"#EEF6F1",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>✏️</span>
+          Edit profile & details
         </button>
         <div style={{height:1,background:"#F4F3EF",margin:"2px 0"}}/>
         <button onClick={()=>{onDelete(member);onClose();}} style={{width:"100%",padding:"14px 18px",border:"none",background:"none",textAlign:"left",cursor:"pointer",fontSize:14,fontWeight:500,display:"flex",alignItems:"center",gap:12,color:"#DC2626",fontFamily:"inherit"}}>
-          <span style={{width:32,height:32,borderRadius:8,background:"#FEF2F2",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>🗑️</span>
+          <span style={{width:34,height:34,borderRadius:8,background:"#FEF2F2",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>🗑️</span>
           Delete {member.nickName||member.fullName.split(" ")[0]}
         </button>
-        <button onClick={onClose} style={{width:"100%",padding:"12px 18px",border:"none",background:"none",textAlign:"center",cursor:"pointer",fontSize:13,color:"#9E9C94",fontFamily:"inherit",borderTop:"1px solid #F4F3EF"}}>Cancel</button>
+        <button onClick={onClose} style={{width:"100%",padding:"12px 18px",border:"none",background:"none",textAlign:"center",cursor:"pointer",fontSize:13,color:"#9E9C94",fontFamily:"inherit",borderTop:"1px solid #F4F3EF"}}>Dismiss</button>
       </div>
     </div>
   );
 }
 
+// ── Long press hook ───────────────────────────────────────────
 function useLongPress(onLongPress, onClick, delay=500) {
   const timer = useRef(null);
   const fired = useRef(false);
-  const start = (e) => {
-    fired.current = false;
-    timer.current = setTimeout(()=>{ fired.current=true; onLongPress(e); }, delay);
-  };
-  const cancel = () => { clearTimeout(timer.current); };
+  const start = (e) => { fired.current=false; timer.current=setTimeout(()=>{ fired.current=true; onLongPress(e); },delay); };
+  const cancel = () => clearTimeout(timer.current);
   const tap = (e) => { if(!fired.current) onClick(e); };
   return {
     onMouseDown:start, onMouseUp:cancel, onMouseLeave:cancel,
@@ -304,73 +331,383 @@ function useLongPress(onLongPress, onClick, delay=500) {
   };
 }
 
-function PersonCard({member,branches,isHighlighted,onClick,onLongPress}) {
-  const color=member.status==="deceased"?"#90A4AE":bColor(member.branchId,branches);
-  const [pressed,setPressed]=useState(false);
+// ── Person card node ─────────────────────────────────────────
+function PersonCard({member,branches,isHighlighted,onClick,onLongPress,isSpouse=false}) {
+  const isMale = member.gender==="M";
+  const isDeceased = member.status==="deceased";
+  const branchClr = bColor(member.branchId,branches);
+  const borderColor = isHighlighted ? branchClr : isSpouse ? "#C9A84C" : isMale ? "#1565C0" : "#6A1E55";
+  const bgColor = isSpouse ? "#FFFBEF" : isMale ? "#EEF4FB" : "#FDF0F8";
   const lp = useLongPress(
-    ()=>{ setPressed(false); onLongPress&&onLongPress(member); },
-    ()=>{ onClick&&onClick(member); },
+    ()=>{ onLongPress&&onLongPress(member); },
+    ()=>{ onClick&&onClick(member); }
   );
   return (
-    <div {...lp} style={{width:NW,background:pressed?"#F0FFF4":"#fff",borderRadius:12,border:`${isHighlighted?2.5:1.5}px solid ${isHighlighted?color:"#E0DDD6"}`,boxShadow:isHighlighted?`0 0 0 4px ${color}30,0 4px 14px rgba(0,0,0,.1)`:"0 2px 8px rgba(0,0,0,.07)",padding:"10px 7px 8px",display:"flex",flexDirection:"column",alignItems:"center",gap:5,opacity:member.status==="deceased"?.8:1,position:"relative",userSelect:"none",cursor:"pointer",WebkitTouchCallout:"none",WebkitUserSelect:"none"}}>
-      <div style={{position:"absolute",top:5,right:5,width:7,height:7,borderRadius:"50%",background:color}}/>
-      <div style={{width:42,height:42,borderRadius:"50%",background:color,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:14,overflow:"hidden",flexShrink:0}}>{member.photo?<img src={member.photo} alt={member.fullName} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:ini(member.fullName)}</div>
-      <div style={{fontSize:11,fontWeight:600,textAlign:"center",lineHeight:1.3,wordBreak:"break-word",maxWidth:"100%"}}>{member.nickName||member.fullName.split(" ")[0]}</div>
-      <div style={{fontSize:10,color:"#9E9C94"}}>{member.status==="deceased"?"🕊 ":""}{member.dob?(member.dobYearOnly?member.dob:member.dob.slice(0,4)):""}</div>
-      <div style={{position:"absolute",bottom:4,left:"50%",transform:"translateX(-50%)",display:"flex",gap:2}}>
-        <div style={{width:3,height:3,borderRadius:"50%",background:"#D8D5CE"}}/>
-        <div style={{width:3,height:3,borderRadius:"50%",background:"#D8D5CE"}}/>
-        <div style={{width:3,height:3,borderRadius:"50%",background:"#D8D5CE"}}/>
+    <div {...lp} style={{
+      width:NW, background:bgColor,
+      borderRadius: isSpouse ? 24 : 12,
+      border:`${isHighlighted?2.5:1.5}px solid ${borderColor}`,
+      boxShadow: isHighlighted ? `0 0 0 3px ${borderColor}30,0 4px 14px rgba(0,0,0,.1)` : "0 2px 8px rgba(0,0,0,.07)",
+      padding:"9px 6px 7px",
+      display:"flex",flexDirection:"column",alignItems:"center",gap:4,
+      opacity:isDeceased?.75:1,
+      position:"relative",userSelect:"none",cursor:"pointer",
+      WebkitTouchCallout:"none",WebkitUserSelect:"none",flexShrink:0,
+    }}>
+      {/* Gender indicator top */}
+      <div style={{position:"absolute",top:5,right:5,fontSize:8,color:borderColor,fontWeight:700}}>{isMale?"♂":"♀"}</div>
+      {/* Deceased indicator */}
+      {isDeceased&&<div style={{position:"absolute",top:5,left:5,fontSize:8}}>🕊</div>}
+      {/* Avatar */}
+      <div style={{
+        width:40,height:40,borderRadius:"50%",
+        background: isDeceased?"#90A4AE": isSpouse?"#C9A84C": branchClr,
+        display:"flex",alignItems:"center",justifyContent:"center",
+        color:"#fff",fontWeight:700,fontSize:13,overflow:"hidden",flexShrink:0,
+        border:`2px solid ${isDeceased?"#B0BEC5":isSpouse?"#E8C060":borderColor}30`,
+      }}>
+        {member.photo
+          ?<img src={member.photo} alt={member.fullName} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+          :ini(member.fullName)
+        }
+      </div>
+      {/* Name */}
+      <div style={{fontSize:10,fontWeight:700,textAlign:"center",lineHeight:1.3,wordBreak:"break-word",maxWidth:"100%",color:"#1A1A18"}}>
+        {member.nickName||member.fullName.split(" ")[0]}
+      </div>
+      {/* Year */}
+      {member.dob&&<div style={{fontSize:9,color:"#9E9C94"}}>{member.dobYearOnly?member.dob:member.dob.slice(0,4)}</div>}
+      {/* Long-press hint dots */}
+      <div style={{position:"absolute",bottom:3,left:"50%",transform:"translateX(-50%)",display:"flex",gap:2}}>
+        {[0,1,2].map(i=><div key={i} style={{width:2.5,height:2.5,borderRadius:"50%",background:"#C8C5BE"}}/>)}
       </div>
     </div>
   );
 }
 
-function CoupleBlock({member,spouse,branches,highlightId,onProfile,onDrillDown,hasChildren,onLongPress}) {
-  const color=member.status==="deceased"?"#90A4AE":bColor(member.branchId,branches);
+// ── Spouse pill (free-text, no member record) ────────────────
+function SpousePill({name,isLeft}) {
+  return (
+    <div style={{
+      background:"#FFFBEF",border:"1.5px solid #C9A84C",
+      borderRadius:20,padding:"5px 12px",
+      fontSize:10,fontWeight:700,color:"#8B6914",
+      whiteSpace:"nowrap",flexShrink:0,
+      display:"flex",alignItems:"center",gap:4,
+    }}>
+      <span style={{color:"#C9A84C"}}>♥</span>
+      {name}
+    </div>
+  );
+}
+
+// ── Root node box ────────────────────────────────────────────
+function RootBox({member,onClick,onLongPress,branches}) {
+  const lp = useLongPress(()=>onLongPress&&onLongPress(member), ()=>onClick&&onClick(member));
+  return (
+    <div {...lp} style={{
+      background:"linear-gradient(135deg,#1A3A2A,#2D6A4F)",
+      borderRadius:14,padding:"10px 18px",
+      display:"flex",flexDirection:"column",alignItems:"center",gap:4,
+      boxShadow:"0 4px 20px rgba(45,106,79,.35)",
+      cursor:"pointer",userSelect:"none",WebkitUserSelect:"none",
+      minWidth:120,flexShrink:0,
+    }}>
+      <div style={{width:48,height:48,borderRadius:"50%",background:"rgba(255,255,255,.2)",border:"2px solid rgba(255,255,255,.4)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",fontSize:18,fontWeight:700,color:"#fff",fontFamily:"'Playfair Display',serif"}}>
+        {member.photo?<img src={member.photo} alt={member.fullName} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:ini(member.fullName)}
+      </div>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:13,fontWeight:700,color:"#fff",textAlign:"center",lineHeight:1.3}}>{member.fullName}</div>
+      {member.nickName&&<div style={{fontSize:10,color:"rgba(255,255,255,.6)"}}>"{member.nickName}"</div>}
+      {member.dob&&<div style={{fontSize:9,color:"rgba(255,255,255,.5)"}}>{member.dobYearOnly?member.dob:member.dob.slice(0,4)}{member.status==="deceased"?" 🕊":""}</div>}
+      <div style={{display:"flex",gap:2,marginTop:2}}>{[0,1,2].map(i=><div key={i} style={{width:2.5,height:2.5,borderRadius:"50%",background:"rgba(255,255,255,.3)"}}/>)}</div>
+    </div>
+  );
+}
+
+// ── Children group for one spouse ────────────────────────────
+// daughters on left sorted by dob, sons on right sorted by dob
+function ChildrenGroup({parentId, spouseIdx, members, branches, highlightId, onProfile, onDrillDown, onLongPress, user, genDepth=1}) {
+  const childBand = getGenBand(genDepth);
+  // All children whose parentId matches AND whose matrilinealSpouseIdx matches (or 0 for first/default)
+  const allChildren = members.filter(m=>m.parentId===parentId&&(m.spouseIdx||0)===spouseIdx);
+  const daughters = allChildren.filter(m=>m.gender==="F").sort((a,b)=>(a.dob||"")>(b.dob||"")?1:-1);
+  const sons      = allChildren.filter(m=>m.gender==="M").sort((a,b)=>(a.dob||"")>(b.dob||"")?1:-1);
+  const ordered   = [...daughters,...sons]; // females left, males right
+
+  if(ordered.length===0) return null;
+
+  const totalW = ordered.length*(NW+HGAP)-HGAP;
+  const halfW = totalW/2;
+
   return (
     <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
-      <div style={{display:"flex",alignItems:"center",gap:8}}>
-        <PersonCard member={member} branches={branches} isHighlighted={member.id===highlightId} onClick={()=>onProfile(member)} onLongPress={onLongPress}/>
-        {spouse&&<><div style={{fontSize:14,color:"#C9A84C",marginBottom:18,flexShrink:0}}>♥</div><PersonCard member={spouse} branches={branches} isHighlighted={spouse.id===highlightId} onClick={()=>onProfile(spouse)} onLongPress={onLongPress}/></>}
+      {/* Generation band indicator line */}
+      <div style={{width:2,height:8,background:childBand.border,borderRadius:1,margin:"0 auto 0"}} />
+      {/* Connector lines via SVG */}
+      <svg width={totalW+4} height={VGAP} style={{display:"block",overflow:"visible",flexShrink:0}}>
+        {ordered.map((_,i)=>{
+          const cx = i*(NW+HGAP)+NW/2+2;
+          return <line key={i} x1={cx} y1={VGAP/2} x2={cx} y2={VGAP} stroke="#C8C5BE" strokeWidth={1.5} strokeLinecap="round"/>;
+        })}
+        <line x1={2+NW/2} y1={VGAP/2} x2={2+(ordered.length-1)*(NW+HGAP)+NW/2} y2={VGAP/2} stroke="#C8C5BE" strokeWidth={1.5} strokeLinecap="round"/>
+        <line x1={halfW+2} y1={0} x2={halfW+2} y2={VGAP/2} stroke="#C8C5BE" strokeWidth={1.5} strokeLinecap="round"/>
+      </svg>
+      {/* Child cards row — tinted with next generation colour */}
+      <div style={{display:"flex",gap:HGAP,alignItems:"flex-start",padding:"10px 8px 8px",background:childBand.bg,borderRadius:14,border:`1px solid ${childBand.border}`}}>
+        {ordered.map(child=>{
+          const hasKids = members.some(m=>m.parentId===child.id)||can.addChildTo(user,child);
+          return (
+            <div key={child.id} style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+              <PersonCard member={child} branches={branches} isHighlighted={child.id===highlightId}
+                onClick={()=>onProfile(child)} onLongPress={onLongPress}/>
+              {hasKids&&(
+                <button onClick={e=>{e.stopPropagation();onDrillDown(child);}}
+                  style={{marginTop:6,width:24,height:24,borderRadius:"50%",
+                    border:`2px solid ${child.gender==="M"?"#1565C0":"#6A1E55"}`,
+                    background:"#fff",color:child.gender==="M"?"#1565C0":"#6A1E55",
+                    fontSize:15,fontWeight:700,cursor:"pointer",
+                    display:"flex",alignItems:"center",justifyContent:"center",
+                    boxShadow:"0 2px 6px rgba(0,0,0,.1)",lineHeight:1}}>+</button>
+              )}
+            </div>
+          );
+        })}
       </div>
-      {hasChildren&&<button onClick={e=>{e.stopPropagation();onDrillDown(member);}} style={{marginTop:8,width:28,height:28,borderRadius:"50%",border:`2px solid ${color}`,background:"#fff",color:color,fontSize:18,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 8px rgba(0,0,0,.1)",lineHeight:1}}>+</button>}
     </div>
   );
 }
 
-function VisualTreeLevel({rootId,members,branches,highlightId,onProfile,onDrillDown,user,onLongPress}) {
-  const root=members.find(m=>m.id===rootId);
+// ── Main visual tree level ────────────────────────────────────
+// Style 1: Root centre, spouses fan left/right, children below each
+function VisualTreeLevel({rootId,members,branches,highlightId,onProfile,onDrillDown,user,onLongPress,genDepth=0}) {
+  const root = members.find(m=>m.id===rootId);
   if(!root) return <div style={{padding:40,color:"#9E9C94",textAlign:"center"}}>Member not found</div>;
-  const spouse=root.spouseId?members.find(m=>m.id===root.spouseId):null;
-  const children=members.filter(m=>m.parentId===rootId);
-  const rootBlockW=spouse?NW*2+8+22:NW;
-  const childTotalW=children.length*NW+Math.max(0,children.length-1)*HGAP;
-  const canvasW=Math.max(rootBlockW,childTotalW)+48;
-  const centerX=canvasW/2;
-  const childStartX=centerX-childTotalW/2;
-  const childCXs=children.map((_,i)=>childStartX+i*(NW+HGAP)+NW/2);
-  const midY=VGAP/2;
+
+  // Get spouses list — from spouses array (free text) or legacy spouseId
+  const spousesList = root.spouses && root.spouses.length>0
+    ? root.spouses.filter(s=>s.name&&s.name.trim())
+    : (root.spouseId ? [{name:"Spouse",id:root.spouseId}] : []);
+
+  // Children grouped by spouseIdx
+  const allChildren = members.filter(m=>m.parentId===rootId);
+
+  // Layout: root in centre, spouses spread left and right
+  // spousesList[0] → left of root, [1] → right, [2] → far left, [3] → far right, etc.
+  const leftSpouses  = spousesList.filter((_,i)=> i%2===0); // 0,2,4 → left side
+  const rightSpouses = spousesList.filter((_,i)=> i%2===1); // 1,3,5 → right side
+
+  // Helper: get children for spouse at original index
+  const getChildGroup = (origIdx) => {
+    const daughters = allChildren.filter(m=>m.gender==="F"&&(m.spouseIdx||0)===origIdx).sort((a,b)=>(a.dob||"")>(b.dob||"")?1:-1);
+    const sons      = allChildren.filter(m=>m.gender==="M"&&(m.spouseIdx||0)===origIdx).sort((a,b)=>(a.dob||"")>(b.dob||"")?1:-1);
+    return [...daughters,...sons];
+  };
+
+  // Unattributed children (no spouseIdx, or spouseIdx undefined when no spouses)
+  const unattributed = spousesList.length===0
+    ? allChildren.sort((a,b)=>{ if(a.gender!==b.gender)return a.gender==="F"?-1:1; return (a.dob||"")>(b.dob||"")?1:-1; })
+    : [];
+
   return (
-    <div style={{display:"flex",flexDirection:"column",alignItems:"center",width:canvasW,minWidth:canvasW}}>
-      <CoupleBlock member={root} spouse={spouse} branches={branches} highlightId={highlightId} onProfile={onProfile} onDrillDown={onDrillDown} hasChildren={false} onLongPress={onLongPress}/>
-      {children.length>0&&(
-        <svg width={canvasW} height={VGAP} style={{display:"block",overflow:"visible",flexShrink:0}}>
-          <line x1={centerX} y1={0} x2={centerX} y2={children.length===1?VGAP:midY} stroke="#C8C5BE" strokeWidth={1.5} strokeLinecap="round"/>
-          {children.length>1&&<line x1={childCXs[0]} y1={midY} x2={childCXs[childCXs.length-1]} y2={midY} stroke="#C8C5BE" strokeWidth={1.5} strokeLinecap="round"/>}
-          {childCXs.map((cx,i)=><line key={i} x1={cx} y1={children.length===1?0:midY} x2={cx} y2={VGAP} stroke="#C8C5BE" strokeWidth={1.5} strokeLinecap="round"/>)}
-        </svg>
-      )}
-      {children.length>0&&(
-        <div style={{display:"flex",gap:HGAP,alignItems:"flex-start",justifyContent:"center",width:canvasW}}>
-          {children.map(child=>{
-            const cs=child.spouseId?members.find(m=>m.id===child.spouseId):null;
-            const hk=members.some(m=>m.parentId===child.id)||can.addChildTo(user,child);
-            return <div key={child.id} data-memberid={child.id}><CoupleBlock member={child} spouse={cs} branches={branches} highlightId={highlightId} onProfile={onProfile} onDrillDown={onDrillDown} hasChildren={hk} onLongPress={onLongPress}/></div>;
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+      {/* ── TOP ROW: Left spouses ♥ ROOT ♥ Right spouses ── */}
+      <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"nowrap"}}>
+        {/* Left spouses (reversed so closest is nearest root) */}
+        {[...leftSpouses].reverse().map((sp,i)=>{
+          const origIdx = (leftSpouses.length-1-i)*2;
+          return (
+            <div key={origIdx} style={{display:"flex",alignItems:"center",gap:8}}>
+              <SpousePill name={sp.name}/>
+              <div style={{fontSize:13,color:"#C9A84C",fontWeight:700}}>♥</div>
+            </div>
+          );
+        })}
+
+        {/* Root person */}
+        <RootBox member={root} onClick={()=>onProfile(root)} onLongPress={onLongPress} branches={branches}/>
+
+        {/* Right spouses */}
+        {rightSpouses.map((sp,i)=>{
+          const origIdx = i*2+1;
+          return (
+            <div key={origIdx} style={{display:"flex",alignItems:"center",gap:8}}>
+              <div style={{fontSize:13,color:"#C9A84C",fontWeight:700}}>♥</div>
+              <SpousePill name={sp.name}/>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── CHILDREN SECTION ── */}
+      {(spousesList.length>0||unattributed.length>0)&&(
+        <div style={{display:"flex",gap:24,alignItems:"flex-start",marginTop:0,flexWrap:"wrap",justifyContent:"center"}}>
+          {/* Left spouse children groups */}
+          {[...leftSpouses].reverse().map((sp,i)=>{
+            const origIdx=(leftSpouses.length-1-i)*2;
+            const kids=getChildGroup(origIdx);
+            if(kids.length===0)return null;
+            return (
+              <div key={origIdx} style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+                {/* Spouse label above group */}
+                <div style={{fontSize:9,color:"#C9A84C",fontWeight:700,marginBottom:4,letterSpacing:"0.04em"}}>
+                  {sp.name}'s children
+                </div>
+                <ChildrenGroup parentId={rootId} spouseIdx={origIdx} members={members} branches={branches}
+                  highlightId={highlightId} onProfile={onProfile} onDrillDown={onDrillDown}
+                  onLongPress={onLongPress} user={user} genDepth={genDepth+1}/>
+              </div>
+            );
+          })}
+
+          {/* Unattributed children (no spouses defined) */}
+          {unattributed.length>0&&(
+            <ChildrenGroup parentId={rootId} spouseIdx={0} members={members} branches={branches}
+              highlightId={highlightId} onProfile={onProfile} onDrillDown={onDrillDown}
+              onLongPress={onLongPress} user={user} genDepth={genDepth+1}/>
+          )}
+
+          {/* Right spouse children groups */}
+          {rightSpouses.map((sp,i)=>{
+            const origIdx=i*2+1;
+            const kids=getChildGroup(origIdx);
+            if(kids.length===0)return null;
+            return (
+              <div key={origIdx} style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+                <div style={{fontSize:9,color:"#C9A84C",fontWeight:700,marginBottom:4,letterSpacing:"0.04em"}}>
+                  {sp.name}'s children
+                </div>
+                <ChildrenGroup parentId={rootId} spouseIdx={origIdx} members={members} branches={branches}
+                  highlightId={highlightId} onProfile={onProfile} onDrillDown={onDrillDown}
+                  onLongPress={onLongPress} user={user} genDepth={genDepth+1}/>
+              </div>
+            );
           })}
         </div>
       )}
-      {children.length===0&&<div style={{marginTop:28,fontSize:13,color:"#B0ABA3",textAlign:"center"}}>No children recorded</div>}
+
+      {spousesList.length===0&&unattributed.length===0&&(
+        <div style={{marginTop:28,fontSize:13,color:"#B0ABA3",textAlign:"center"}}>No children recorded</div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GENERATION COLOUR BANDS
+// ═══════════════════════════════════════════════════════════════
+const GEN_BANDS = [
+  { bg:"#E8F4EF", border:"#A8D4B8", label:"Generation 1 — Founders",      accent:"#2D6A4F" },
+  { bg:"#E3EEF9", border:"#A8C8E8", label:"Generation 2 — Children",       accent:"#1565C0" },
+  { bg:"#EEE4F4", border:"#C4A8E0", label:"Generation 3 — Grandchildren",  accent:"#6A1E55" },
+  { bg:"#FFF3E0", border:"#F0C878", label:"Generation 4",                  accent:"#B5451B" },
+  { bg:"#FDE8E8", border:"#F0A8A8", label:"Generation 5",                  accent:"#C62828" },
+  { bg:"#E8F4F8", border:"#90CAD8", label:"Generation 6",                  accent:"#00838F" },
+  { bg:"#F4F4E8", border:"#C8C890", label:"Generation 7",                  accent:"#827717" },
+  { bg:"#F0E8F4", border:"#C4A8D4", label:"Generation 8",                  accent:"#4A148C" },
+];
+const getGenBand = (depth) => GEN_BANDS[Math.min(depth, GEN_BANDS.length-1)];
+
+// Helper: compute depth of a member from root
+function getMemberDepth(memberId, members) {
+  let depth = 0, id = memberId;
+  while(id) {
+    const m = members.find(x=>x.id===id);
+    if(!m||!m.parentId) break;
+    depth++;
+    id = m.parentId;
+  }
+  return depth;
+}
+
+// Helper: build ancestor chain from root down to a memberId
+function getAncestorChain(memberId, members) {
+  const chain = [];
+  let id = memberId;
+  while(id) {
+    const m = members.find(x=>x.id===id);
+    if(!m) break;
+    chain.unshift(m);
+    id = m.parentId;
+  }
+  return chain; // [root, ..., memberId]
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ANCESTOR BREADCRUMB TRAIL
+// ═══════════════════════════════════════════════════════════════
+function AncestorBreadcrumb({stack, members, onJumpTo}) {
+  const scrollRef = useRef(null);
+  const chain = stack.map(id=>members.find(m=>m.id===id)).filter(Boolean);
+
+  // Auto-scroll to end (current)
+  useEffect(()=>{
+    if(scrollRef.current) {
+      scrollRef.current.scrollLeft = scrollRef.current.scrollWidth;
+    }
+  },[stack.length]);
+
+  if(chain.length === 0) return null;
+
+  return (
+    <div style={{background:"#fff",borderBottom:"1px solid #EDECEA",padding:"8px 12px 6px"}}>
+      <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",color:"#B0ABA3",marginBottom:5}}>
+        ↑ Ancestry Path
+      </div>
+      <div ref={scrollRef} style={{display:"flex",alignItems:"center",gap:0,overflowX:"auto",scrollbarWidth:"none",WebkitOverflowScrolling:"touch"}}>
+        {chain.map((m,i)=>{
+          const depth = i;
+          const band = getGenBand(depth);
+          const isCurrent = i === chain.length-1;
+          const isRoot = i === 0;
+          return (
+            <div key={m.id} style={{display:"flex",alignItems:"center",gap:0,flexShrink:0}}>
+              {/* Node */}
+              <div
+                onClick={()=>!isCurrent&&onJumpTo(i)}
+                style={{
+                  display:"flex",flexDirection:"column",alignItems:"center",
+                  padding:"4px 8px",borderRadius:10,cursor:isCurrent?"default":"pointer",
+                  background: isCurrent ? band.bg : "transparent",
+                  border: isCurrent ? `1.5px solid ${band.border}` : "1.5px solid transparent",
+                  transition:"all .15s",
+                }}
+              >
+                {/* Avatar */}
+                <div style={{
+                  width:28,height:28,borderRadius:"50%",
+                  background: isCurrent ? band.accent : "#D8D5CE",
+                  display:"flex",alignItems:"center",justifyContent:"center",
+                  color:"#fff",fontSize:9,fontWeight:700,marginBottom:3,
+                  overflow:"hidden",flexShrink:0,
+                  boxShadow: isCurrent ? `0 0 0 2px ${band.border}` : "none",
+                }}>
+                  {m.photo
+                    ? <img src={m.photo} alt={m.fullName} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+                    : ini(m.fullName)
+                  }
+                </div>
+                {/* Name */}
+                <div style={{
+                  fontSize:9,fontWeight: isCurrent?700:500,
+                  color: isCurrent ? band.accent : "#9E9C94",
+                  whiteSpace:"nowrap",maxWidth:56,overflow:"hidden",textOverflow:"ellipsis",textAlign:"center",
+                }}>
+                  {m.nickName||m.fullName.split(" ")[0]}
+                  {isRoot&&" 🌿"}
+                </div>
+                {/* Gen number */}
+                <div style={{fontSize:8,color: isCurrent ? band.accent : "#C8C5BE",marginTop:1}}>
+                  Gen {depth+1}
+                </div>
+              </div>
+              {/* Arrow between nodes */}
+              {i < chain.length-1 && (
+                <div style={{color:"#C8C5BE",fontSize:14,padding:"0 1px",marginTop:-8}}>›</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -386,7 +723,10 @@ function TreeScreen({db,updateDB,onProfile,highlightId,clearHighlight,user}) {
   const scrollRef=useRef(null);
   const currentRootId=stack[stack.length-1];
   const currentRoot=members.find(m=>m.id===currentRootId);
+  const currentDepth=stack.length-1;
+  const currentBand=getGenBand(currentDepth);
 
+  // Navigate by highlight (search)
   useEffect(()=>{
     if(!highlightId)return;
     const target=members.find(m=>m.id===highlightId); if(!target)return;
@@ -397,9 +737,8 @@ function TreeScreen({db,updateDB,onProfile,highlightId,clearHighlight,user}) {
   },[highlightId]);
 
   const drillDown=(member)=>{ clearHighlight(); setStack(s=>[...s,member.id]); if(scrollRef.current)scrollRef.current.scrollTo({top:0,left:0,behavior:"smooth"}); };
-  const goBack=()=>{ setStack(s=>s.slice(0,-1)); if(scrollRef.current)scrollRef.current.scrollTo({top:0,left:0,behavior:"smooth"}); };
-  const goToDepth=(idx)=>setStack(s=>s.slice(0,idx+1));
-  const breadcrumb=stack.map(id=>members.find(m=>m.id===id)).filter(Boolean);
+  const goBack=()=>{ if(stack.length>1){setStack(s=>s.slice(0,-1)); if(scrollRef.current)scrollRef.current.scrollTo({top:0,left:0,behavior:"smooth"});} };
+  const jumpTo=(idx)=>{ setStack(s=>s.slice(0,idx+1)); if(scrollRef.current)scrollRef.current.scrollTo({top:0,left:0,behavior:"smooth"}); };
   const canAdd=user.role==="super_admin"||can.addChildTo(user,currentRoot||{branchId:null,id:"root"});
   const [contextMember,setContextMember]=useState(null);
   const [addChildTarget,setAddChildTarget]=useState(null);
@@ -407,52 +746,94 @@ function TreeScreen({db,updateDB,onProfile,highlightId,clearHighlight,user}) {
   const handleEditSave=(data)=>{ updateDB("members",members.map(m=>m.id===data.id?data:m)); setEditingMember(null); };
   const handleEditDelete=(id)=>{ updateDB("members",members.filter(m=>m.id!==id)); setEditingMember(null); if(stack.includes(id))setStack(["root"]); };
   const onLongPress=(member)=>{ if(user.role==="super_admin"||can.editMember(user,member))setContextMember(member); };
-  const handleContextAddChild=(member)=>{ setAddChildTarget(member); };
-  const handleContextEdit=(member)=>{ setEditingMember(member); };
-  const handleContextDelete=(member)=>{ setConfirmDeleteMember(member); };
 
   return (
     <div style={{display:"flex",flexDirection:"column",height:"100%",background:"#FAFAF8"}}>
-      <div style={{padding:"50px 16px 10px",flexShrink:0,background:"#FAFAF8",borderBottom:"1px solid #EDECEA"}}>
-        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-          {stack.length>1&&<button onClick={goBack} style={{width:34,height:34,borderRadius:"50%",border:"1.5px solid #E8E5DE",background:"#fff",fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontWeight:700,color:"#5C5B56",boxShadow:"0 1px 4px rgba(0,0,0,.07)",lineHeight:1}}>−</button>}
-          <div style={{flex:1,fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700}}>{stack.length===1?"Family Tree":currentRoot?.fullName||""}</div>
-          {canAdd&&<button onClick={()=>setShowAdd(true)} style={{padding:"7px 14px",background:"#2D6A4F",color:"#fff",border:"none",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",flexShrink:0,fontFamily:"inherit"}}>+ Add</button>}
+
+      {/* ── Fixed top bar ── */}
+      <div style={{flexShrink:0,background:"#fff",borderBottom:"1px solid #EDECEA"}}>
+        {/* Title row */}
+        <div style={{padding:"50px 16px 8px",display:"flex",alignItems:"center",gap:10}}>
+          {stack.length>1&&(
+            <button onClick={goBack} style={{width:34,height:34,borderRadius:"50%",border:`1.5px solid ${currentBand.border}`,background:currentBand.bg,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontWeight:700,color:currentBand.accent,lineHeight:1}}>−</button>
+          )}
+          <div style={{flex:1}}>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700,color:"#1A1A18"}}>
+              {stack.length===1?"Family Tree":currentRoot?.fullName||""}
+            </div>
+            {/* Generation label */}
+            <div style={{fontSize:10,fontWeight:700,color:currentBand.accent,letterSpacing:"0.05em",marginTop:1}}>
+              {currentBand.label} {stack.length>1?`· ${currentRoot?.fullName||""}'s family`:""}
+            </div>
+          </div>
+          {canAdd&&(
+            <button onClick={()=>setShowAdd(true)} style={{padding:"7px 14px",background:currentBand.accent,color:"#fff",border:"none",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",flexShrink:0,fontFamily:"inherit"}}>+ Add</button>
+          )}
         </div>
-        {stack.length>1&&(
-          <div style={{display:"flex",alignItems:"center",gap:4,overflowX:"auto",paddingBottom:4,scrollbarWidth:"none"}}>
-            {breadcrumb.map((m,i)=>(
-              <span key={m.id} style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
-                <span onClick={()=>goToDepth(i)} style={{fontSize:11,fontWeight:i===breadcrumb.length-1?700:400,color:i===breadcrumb.length-1?"#2D6A4F":"#9E9C94",cursor:"pointer",whiteSpace:"nowrap"}}>{m.nickName||m.fullName.split(" ")[0]}</span>
-                {i<breadcrumb.length-1&&<span style={{color:"#C8C5BE",fontSize:10}}>›</span>}
-              </span>
-            ))}
+
+        {/* Ancestor breadcrumb trail */}
+        <AncestorBreadcrumb stack={stack} members={members} onJumpTo={jumpTo}/>
+
+        {/* Legend */}
+        <div style={{display:"flex",gap:10,alignItems:"center",padding:"6px 14px 8px",flexWrap:"wrap"}}>
+          <div style={{display:"flex",alignItems:"center",gap:3}}><div style={{width:9,height:9,borderRadius:2,background:"#EEF4FB",border:"1.5px solid #1565C0"}}/><span style={{fontSize:9,color:"#9E9C94"}}>♂ Son</span></div>
+          <div style={{display:"flex",alignItems:"center",gap:3}}><div style={{width:9,height:9,borderRadius:2,background:"#FDF0F8",border:"1.5px solid #6A1E55"}}/><span style={{fontSize:9,color:"#9E9C94"}}>♀ Daughter</span></div>
+          <div style={{display:"flex",alignItems:"center",gap:3}}><div style={{width:9,height:9,borderRadius:8,background:"#FFFBEF",border:"1.5px solid #C9A84C"}}/><span style={{fontSize:9,color:"#9E9C94"}}>♥ Spouse</span></div>
+          <span style={{fontSize:9,color:"#C8C5BE",marginLeft:"auto"}}>Hold card → options</span>
+        </div>
+      </div>
+
+      {/* ── Scrollable tree canvas with generation band background ── */}
+      <div ref={scrollRef} style={{flex:1,overflow:"auto",background:currentBand.bg}}>
+        {/* Generation band header strip */}
+        <div style={{
+          padding:"8px 16px 6px",
+          borderBottom:`1px solid ${currentBand.border}`,
+          display:"flex",alignItems:"center",gap:8,
+          background:`${currentBand.bg}`,
+          position:"sticky",top:0,zIndex:10,
+        }}>
+          <div style={{width:8,height:8,borderRadius:"50%",background:currentBand.accent,flexShrink:0}}/>
+          <div style={{fontSize:11,fontWeight:700,color:currentBand.accent,letterSpacing:"0.04em"}}>
+            {currentBand.label}
+          </div>
+          {stack.length>1&&(
+            <div style={{marginLeft:"auto",fontSize:10,color:currentBand.accent,opacity:.7}}>
+              Tap ↑ breadcrumb to go back up
+            </div>
+          )}
+        </div>
+
+        {/* Tree content */}
+        <div style={{padding:"20px 16px 80px",display:"flex",justifyContent:"center",minHeight:"60vh"}}>
+          <div style={{minWidth:"max-content",display:"flex",justifyContent:"center"}}>
+            <VisualTreeLevel
+              rootId={currentRootId} members={members} branches={branches}
+              highlightId={highlightId} onProfile={onProfile} onDrillDown={drillDown}
+              user={user} onLongPress={onLongPress} genDepth={currentDepth}
+            />
+          </div>
+        </div>
+
+        {/* Next generation preview hint at bottom */}
+        {members.some(m=>m.parentId===currentRootId)&&(
+          <div style={{
+            margin:"0 16px 16px",padding:"10px 14px",
+            background:`${getGenBand(currentDepth+1).bg}`,
+            border:`1px dashed ${getGenBand(currentDepth+1).border}`,
+            borderRadius:12,display:"flex",alignItems:"center",gap:8,
+          }}>
+            <div style={{width:8,height:8,borderRadius:"50%",background:getGenBand(currentDepth+1).accent,flexShrink:0}}/>
+            <div style={{fontSize:11,color:getGenBand(currentDepth+1).accent,fontWeight:600}}>
+              Tap + on any child to enter {getGenBand(currentDepth+1).label}
+            </div>
           </div>
         )}
       </div>
-      <div ref={scrollRef} style={{flex:1,overflow:"auto",padding:"24px 20px 80px",display:"flex",justifyContent:"center"}}>
-        <div style={{minWidth:"max-content",display:"flex",justifyContent:"center"}}>
-          <VisualTreeLevel rootId={currentRootId} members={members} branches={branches} highlightId={highlightId} onProfile={onProfile} onDrillDown={drillDown} user={user} onLongPress={onLongPress}/>
-        </div>
-      </div>
-      {/* Context menu on long press */}
       {contextMember&&<ContextMenu member={contextMember} onAddChild={handleContextAddChild} onEdit={handleContextEdit} onDelete={handleContextDelete} onClose={()=>setContextMember(null)}/>}
-      {/* Add child modal (from + button or context menu) */}
       {(showAdd||addChildTarget)&&<EditMemberModal member={null} isNew parentMember={addChildTarget||currentRoot} branches={branches} houses={houses} members={members} onSave={d=>{updateDB("members",[...members,d]);setShowAdd(false);setAddChildTarget(null);}} onDelete={()=>{}} onClose={()=>{setShowAdd(false);setAddChildTarget(null);}}/>}
-      {/* Edit member modal */}
       {editingMember&&<EditMemberModal member={editingMember} isNew={false} branches={branches} houses={houses} members={members} onSave={handleEditSave} onDelete={handleEditDelete} onClose={()=>setEditingMember(null)}/>}
-      {/* Confirm delete */}
-      {confirmDeleteMember&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:900,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 32px"}}>
-        <div style={{background:"#fff",borderRadius:18,padding:24,textAlign:"center",width:"100%",maxWidth:320}}>
-          <div style={{fontSize:40,marginBottom:12}}>🗑️</div>
-          <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700,marginBottom:8}}>Delete {confirmDeleteMember.fullName}?</div>
-          <div style={{fontSize:13,color:"#9E9C94",marginBottom:20,lineHeight:1.5}}>This will permanently remove this member. Their children will remain but lose their parent link.</div>
-          <div style={{display:"flex",gap:10}}>
-            <button onClick={()=>setConfirmDeleteMember(null)} style={{flex:1,padding:12,border:"1px solid #E8E5DE",borderRadius:8,background:"#F4F3EF",fontWeight:600,cursor:"pointer",fontFamily:"inherit",fontSize:14}}>Cancel</button>
-            <button onClick={()=>{ updateDB("members",members.filter(m=>m.id!==confirmDeleteMember.id)); setConfirmDeleteMember(null); if(stack.includes(confirmDeleteMember.id))setStack(["root"]); }} style={{flex:1,padding:12,border:"none",borderRadius:8,background:"#DC2626",color:"#fff",fontWeight:600,cursor:"pointer",fontFamily:"inherit",fontSize:14}}>Delete</button>
-          </div>
-        </div>
-      </div>}
+      {confirmDeleteMember&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:900,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 32px"}}><div style={{background:"#fff",borderRadius:18,padding:24,textAlign:"center",width:"100%",maxWidth:320}}><div style={{fontSize:40,marginBottom:12}}>🗑️</div><div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700,marginBottom:8}}>Delete {confirmDeleteMember.fullName}?</div><div style={{fontSize:13,color:"#9E9C94",marginBottom:20,lineHeight:1.5}}>This will permanently remove this member.</div><div style={{display:"flex",gap:10}}><button onClick={()=>setConfirmDeleteMember(null)} style={{flex:1,padding:12,border:"1px solid #E8E5DE",borderRadius:8,background:"#F4F3EF",fontWeight:600,cursor:"pointer",fontFamily:"inherit",fontSize:14}}>Cancel</button><button onClick={()=>{updateDB("members",members.filter(m=>m.id!==confirmDeleteMember.id));setConfirmDeleteMember(null);if(stack.includes(confirmDeleteMember.id))setStack(["root"]);}} style={{flex:1,padding:12,border:"none",borderRadius:8,background:"#DC2626",color:"#fff",fontWeight:600,cursor:"pointer",fontFamily:"inherit",fontSize:14}}>Delete</button></div></div></div>}
     </div>
   );
 }
@@ -541,7 +922,25 @@ function MemberProfile({member,db,onBack,onSelectMember,user,onSave,onDelete}) {
             </div>
           </PCard>
         )}
-        {spouse&&<PCard><PLbl>Spouse</PLbl><MiniRow member={spouse} branches={branches} onClick={()=>onSelectMember(spouse)}/></PCard>}
+        {/* Spouses — free text list */}
+        {(()=>{
+          const spList=(member.spouses||[]).filter(s=>s&&s.name&&s.name.trim());
+          if(spList.length===0)return null;
+          return(
+            <PCard>
+              <PLbl>Spouse{spList.length>1?"s":""}</PLbl>
+              {spList.map((sp,i)=>(
+                <div key={i} style={{display:"flex",alignItems:"center",gap:10,padding:"10px",background:"#FFFBEF",border:"1px solid #E8C96E",borderRadius:8,marginBottom:i<spList.length-1?8:0}}>
+                  <div style={{width:34,height:34,borderRadius:"50%",background:"#C9A84C",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:14,flexShrink:0,fontWeight:700}}>♥</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:14,fontWeight:600}}>{sp.name}</div>
+                    <div style={{fontSize:11,color:"#9E9C94"}}>Spouse {i+1}</div>
+                  </div>
+                </div>
+              ))}
+            </PCard>
+          );
+        })()}
         {children.length>0&&<PCard><PLbl>Children ({children.length})</PLbl>{children.map(c=><MiniRow key={c.id} member={c} branches={branches} onClick={()=>onSelectMember(c)}/>)}</PCard>}
       </div>
       {editing&&<EditMemberModal member={member} isNew={false} branches={branches} houses={houses} members={members} onSave={d=>{onSave(d);setEditing(false);}} onDelete={id=>{onDelete(id);setEditing(false);onBack();}} onClose={()=>setEditing(false)}/>}
