@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+  <meta name="apple-mobile-web-app-title" content="Family Tree"/>
+  <meta name="theme-color" content="#2D6A4F"/>
+  <title>Family Tree</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html,body,#root{height:100%;width:100%}
+    body{background:#FAFAF8;font-family:'DM Sans',system-ui,sans-serif;color:#1A1A18;overflow:hidden}
+    input,select,textarea,button{font-family:'DM Sans',system-ui,sans-serif}
+    .fi{width:100%;padding:11px 13px;border:1.5px solid #E8E5DE;border-radius:8px;font-size:14px;outline:none;background:#fff;transition:border-color .2s;font-family:inherit;display:block}
+    .fi:focus{border-color:#2D6A4F}
+    @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(16px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+    @keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+    ::-webkit-scrollbar{width:4px;height:4px}
+    ::-webkit-scrollbar-track{background:transparent}
+    ::-webkit-scrollbar-thumb{background:#D8D5CE;border-radius:2px}
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ═══════════════════════════════════════════════════════════════
+// SEED DATA — used only on very first launch
+// ═══════════════════════════════════════════════════════════════
+const SEED = {
+  members: [
+    { id:"root",  fullName:"Mariyumma",    nickName:"",       gender:"F", dob:"1880", dobYearOnly:true,  branchId:null, parentId:null,  houseId:"H001", spouseId:"moosa", bio:"Matriarch of the family",              status:"deceased", dod:"1950-06-15", hijriDod:"1370-09-10", hijriAdj:0, email:"", whatsapp:"" },
+    { id:"moosa", fullName:"Moosa Haji",   nickName:"Haji",   gender:"M", dob:"1875", dobYearOnly:true,  branchId:null, parentId:null,  houseId:"H001", spouseId:"root",  bio:"Patriarch and founder of the family", status:"deceased", dod:"1948-03-20", hijriDod:"1367-05-10", hijriAdj:0, email:"", whatsapp:"" },
+    { id:"p1",  fullName:"Abdul Rahman", nickName:"Abdu",   gender:"M", dob:"1910-05-12", dobYearOnly:false, branchId:1, parentId:"root", houseId:"H001", spouseId:null, bio:"", status:"deceased", dod:"1985-11-03", hijriDod:"1406-01-20", hijriAdj:0, email:"", whatsapp:"" },
+    { id:"p2",  fullName:"Ismail",       nickName:"Ismail", gender:"M", dob:"1940-08-22", dobYearOnly:false, branchId:1, parentId:"p1",  houseId:"H001", spouseId:null, bio:"", status:"active",   dod:null, hijriDod:"", hijriAdj:0, email:"ismail@example.com", whatsapp:"+919876543210" },
+    { id:"p3",  fullName:"Ahmed",        nickName:"Ahmed",  gender:"M", dob:"1965-03-15", dobYearOnly:false, branchId:1, parentId:"p2",  houseId:"H021", spouseId:null, bio:"Engineer based in Dubai", status:"active", dod:null, hijriDod:"", hijriAdj:0, email:"ahmed@example.com", whatsapp:"+971501234567" },
+    { id:"p4",  fullName:"Fatima",       nickName:"Fathi",  gender:"F", dob:"1968-07-20", dobYearOnly:false, branchId:1, parentId:"p2",  houseId:"H001", spouseId:null, bio:"", status:"active",   dod:null, hijriDod:"", hijriAdj:0, email:"", whatsapp:"" },
+    { id:"p5",  fullName:"Zainab",       nickName:"Zainu",  gender:"F", dob:"1993-12-01", dobYearOnly:false, branchId:1, parentId:"p3",  houseId:"H021", spouseId:null, bio:"", status:"active",   dod:null, hijriDod:"", hijriAdj:0, email:"zainab@example.com", whatsapp:"+971509876543" },
+    { id:"c1",  fullName:"Mohammed Ali", nickName:"Ali",   gender:"M", dob:"1912-02-18", dobYearOnly:false, branchId:2, parentId:"root", houseId:"H002", spouseId:null, bio:"", status:"deceased", dod:"1990-04-10", hijriDod:"1410-10-15", hijriAdj:0, email:"", whatsapp:"" },
+    { id:"c2",  fullName:"Hassan",       nickName:"Hasan", gender:"M", dob:"1945-09-30", dobYearOnly:false, branchId:2, parentId:"c1",  houseId:"H002", spouseId:null, bio:"Retired teacher", status:"active", dod:null, hijriDod:"", hijriAdj:0, email:"", whatsapp:"+919876500001" },
+    { id:"c3",  fullName:"Khadija",      nickName:"Khadiju",gender:"F",dob:"1970-06-14", dobYearOnly:false, branchId:2, parentId:"c2",  houseId:"H002", spouseId:null, bio:"", status:"active",   dod:null, hijriDod:"", hijriAdj:0, email:"", whatsapp:"" },
+    { id:"pt1", fullName:"Ibrahim",      nickName:"Ibbu",  gender:"M", dob:"1915-11-05", dobYearOnly:false, branchId:3, parentId:"root", houseId:"H003", spouseId:null, bio:"", status:"deceased", dod:"1992-08-22", hijriDod:"1413-02-25", hijriAdj:0, email:"", whatsapp:"" },
+    { id:"pt2", fullName:"Yusuf",        nickName:"Yosu",  gender:"M", dob:"1950-04-07", dobYearOnly:false, branchId:3, parentId:"pt1", houseId:"H003", spouseId:null, bio:"", status:"active",   dod:null, hijriDod:"", hijriAdj:0, email:"", whatsapp:"" },
+  ],
+  branches: [
+    { id:1, name:"Palisseri",           order:1, color:"#2D6A4F", discontinued:false },
+    { id:2, name:"Cheerayi",            order:2, color:"#1565C0", discontinued:false },
+    { id:3, name:"Poothatha",           order:3, color:"#6A1E55", discontinued:false },
+    { id:4, name:"Kariyadan Cheerayil", order:4, color:"#B5451B", discontinued:false },
+    { id:5, name:"Kuniyil",             order:5, color:"#4A148C", discontinued:false },
+    { id:6, name:"Bata",                order:6, color:"#0277BD", discontinued:false },
+    { id:7, name:"Usman",               order:7, color:"#78909C", discontinued:true  },
+    { id:8, name:"Kunhaleema",          order:8, color:"#78909C", discontinued:true  },
+  ],
+  houses: [
+    { id:"H001", name:"Palisseri House",      address:"Cheerayi, Kerala",   plusCode:"7JXH+6C" },
+    { id:"H002", name:"Cheerayi House",       address:"Cheerayi, Kerala",   plusCode:"7JXH+8F" },
+    { id:"H003", name:"Poothatha House",      address:"Malappuram, Kerala", plusCode:"8KYL+3A" },
+    { id:"H021", name:"Palisseri Main House", address:"Cheerayi, Kerala",   plusCode:"7JXH+6C" },
+  ],
+  announcements: [
+    { id:1, title:"Family Reunion 2025",   content:"Annual family gathering at Palisseri House on 15th August. All members are invited.", priority:"high",   createdBy:"u1", createdAt:"2025-06-01" },
+    { id:2, title:"Hastham Charity Drive", content:"Charity collection begins in Ramadan. Contact any branch admin.",                     priority:"normal", createdBy:"u1", createdAt:"2025-05-15" },
+  ],
+  users: [
+    { id:"u1", name:"Ahmed Ismail",  email:"ahmed@example.com",  role:"super_admin",  branchId:1, memberId:"p3"  },
+    { id:"u2", name:"Hassan Moosa",  email:"hassan@example.com", role:"branch_admin", branchId:2, memberId:"c2"  },
+    { id:"u3", name:"Yusuf Ibrahim", email:"yusuf@example.com",  role:"member",       branchId:3, memberId:"pt2" },
+  ],
+  settings: {
+    quote_of_day:"The best of you are those who are best to their families",
+    quote_source:"Hadith",
+    feature_charity_enabled:true,
+    feature_photos_enabled:true,
+    birthday_notifications:true,
+    app_name:"Family Tree",
+    contact_admin_email:"ahmed@example.com",
+  },
+};
+
+const SESSION_USER = SEED.users[0]; // Change index: 0=super_admin, 1=branch_admin, 2=member
+
+// ═══════════════════════════════════════════════════════════════
+// localStorage STORAGE (replaces window.storage — works anywhere)
+// ═══════════════════════════════════════════════════════════════
+const KEYS = { members:"fam_members", branches:"fam_branches", houses:"fam_houses", announcements:"fam_ann", users:"fam_users", settings:"fam_settings" };
+const lsGet = (key, fallback) => { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; } };
+const lsSet = (key, val)      => { try { localStorage.setItem(key, JSON.stringify(val)); } catch {} };
+
+function useDB() {
+  const [db, setDbRaw] = useState(null);
+  useEffect(() => {
+    setDbRaw({
+      members:       lsGet(KEYS.members,       SEED.members),
+      branches:      lsGet(KEYS.branches,      SEED.branches),
+      houses:        lsGet(KEYS.houses,        SEED.houses),
+      announcements: lsGet(KEYS.announcements, SEED.announcements),
+      users:         lsGet(KEYS.users,         SEED.users),
+      settings:      lsGet(KEYS.settings,      SEED.settings),
+    });
+  }, []);
+  const update = useCallback((table, newData) => {
+    lsSet(KEYS[table], newData);
+    setDbRaw(prev => ({ ...prev, [table]: newData }));
+  }, []);
+  return [db, update];
+}
+
+// ═══════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════
+const getAge = (dob) => { if (!dob) return null; const b=new Date(dob),t=new Date(); let a=t.getFullYear()-b.getFullYear(); if(t.getMonth()<b.getMonth()||(t.getMonth()===b.getMonth()&&t.getDate()<b.getDate()))a--; return a; };
+const isBday = (dob) => { if(!dob)return false; const b=new Date(dob),t=new Date(); return b.getDate()===t.getDate()&&b.getMonth()===t.getMonth(); };
+const ini    = (n)   => (n||"?").split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
+const bColor = (id,branches) => (branches.find(b=>b.id===id)||{}).color||"#607D8B";
+const fmtDate= (d)   => { try { return d?new Date(d).toLocaleDateString("en-IN",{day:"numeric",month:"short",year:"numeric"}):"—"; } catch { return d||"—"; } };
+const nid    = ()    => "m_"+Date.now()+"_"+Math.random().toString(36).slice(2,5);
+
+function toHijri(dateStr) {
+  if (!dateStr) return "";
+  try {
+    const d = new Date(dateStr); if(isNaN(d))return "";
+    const jd=Math.floor((14+d.getMonth()+1+12*Math.floor((d.getMonth()+1<=2?d.getFullYear()-1:d.getFullYear()))/12));
+    const I=d.getFullYear()+4800-jd, J=(d.getMonth()+1)+12*jd-3;
+    let JDN=d.getDate()+Math.floor((153*J+2)/5)+365*I+Math.floor(I/4)-Math.floor(I/100)+Math.floor(I/400)-32045;
+    let l=JDN-1948440+10632; const n=Math.floor((l-1)/10631); l=l-10631*n+354;
+    const J2=Math.floor((10985-l)/5316)*Math.floor((50*l)/17719)+Math.floor(l/5670)*Math.floor((43*l)/15238);
+    l=l-Math.floor((30-J2)/15)*Math.floor((17719*J2)/50)-Math.floor(J2/16)*Math.floor((15238*J2)/43)+29;
+    const month=Math.floor((24+l)/29), day=l-Math.floor((29*month)/2), year=30*n+J2-30;
+    return `${year}-${String(month).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+  } catch { return ""; }
+}
+
+const can = {
+  editMember:  (u,m) => u.role==="super_admin"||(u.role==="branch_admin"&&m.branchId===u.branchId)||(u.role==="member"&&m.id===u.memberId),
+  addChildTo:  (u,p) => u.role==="super_admin"||(u.role==="branch_admin"&&(p.branchId===u.branchId||p.branchId===null))||(u.role==="member"&&p.id===u.memberId),
+  accessAdmin: (u)   => u.role==="super_admin",
+  accessHastham:(u)  => u.role==="super_admin",
+};
+
+// ═══════════════════════════════════════════════════════════════
+// UI ATOMS
+// ═══════════════════════════════════════════════════════════════
+function Toast({msg,onDone}) {
+  useEffect(()=>{ const t=setTimeout(onDone,2400); return()=>clearTimeout(t); },[]);
+  return <div style={{position:"fixed",bottom:90,left:"50%",transform:"translateX(-50%)",background:"#1A3A2A",color:"#fff",padding:"10px 22px",borderRadius:24,fontSize:13,fontWeight:600,zIndex:9999,whiteSpace:"nowrap",boxShadow:"0 4px 20px rgba(0,0,0,.3)",animation:"toastIn .25s ease-out",pointerEvents:"none"}}>{msg}</div>;
+}
+const FG  = ({label,children,hint}) => <div style={{marginBottom:13}}><label style={{display:"block",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.07em",color:"#9E9C94",marginBottom:4}}>{label}</label>{children}{hint&&<div style={{fontSize:11,color:"#9E9C94",marginTop:3}}>{hint}</div>}</div>;
+const FI  = (props) => <input className="fi" {...props}/>;
+const FS  = ({value,onChange,children,...r}) => <select className="fi" value={value} onChange={onChange} {...r}>{children}</select>;
+const FTA = (props) => <textarea className="fi" {...props}/>;
+const Btn = ({children,onClick,variant="primary",style={},...r}) => {
+  const vs={primary:{background:"#2D6A4F",color:"#fff",border:"none"},secondary:{background:"#F4F3EF",color:"#1A1A18",border:"1px solid #E8E5DE"},danger:{background:"#FEF2F2",color:"#DC2626",border:"1px solid #FECACA"},"danger-solid":{background:"#DC2626",color:"#fff",border:"none"}};
+  return <button onClick={onClick} style={{padding:"11px 18px",borderRadius:8,fontWeight:600,fontSize:14,cursor:"pointer",fontFamily:"inherit",...vs[variant],...style}} {...r}>{children}</button>;
+};
+const PCard = ({children,style={}}) => <div style={{background:"#fff",borderRadius:14,padding:18,boxShadow:"0 2px 10px rgba(0,0,0,.06)",marginBottom:12,border:"1px solid #E8E5DE",...style}}>{children}</div>;
+const PLbl  = ({children}) => <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",color:"#9E9C94",marginBottom:10}}>{children}</div>;
+const PStat = ({label,val,color}) => <div><div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.06em",color:"#9E9C94",marginBottom:3}}>{label}</div><div style={{fontSize:14,fontWeight:500,color:color||"#1A1A18"}}>{val||"—"}</div></div>;
+
+function Sheet({title,onClose,children,footer}) {
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.55)",zIndex:500,display:"flex",alignItems:"flex-end",justifyContent:"center"}}>
+      <div style={{background:"#fff",borderRadius:"20px 20px 0 0",width:"100%",maxWidth:430,maxHeight:"90vh",display:"flex",flexDirection:"column",animation:"sheetUp .3s ease-out"}}>
+        <div style={{padding:"14px 20px 0",flexShrink:0}}>
+          <div style={{width:40,height:4,background:"#E8E5DE",borderRadius:2,margin:"0 auto 14px"}}/>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700}}>{title}</div>
+            <button onClick={onClose} style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:8,padding:"5px 12px",cursor:"pointer",fontSize:12,fontWeight:700,color:"#DC2626",fontFamily:"inherit"}}>✕ Cancel</button>
+          </div>
+        </div>
+        <div style={{overflowY:"auto",padding:"0 20px 4px",flex:1}}>{children}</div>
+        {footer&&<div style={{padding:"12px 20px 20px",borderTop:"1px solid #E8E5DE",flexShrink:0}}>{footer}</div>}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EDIT MEMBER MODAL
+// ═══════════════════════════════════════════════════════════════
+function EditMemberModal({member,branches,houses,members,onSave,onDelete,onClose,isNew,parentMember}) {
+  const blank={id:nid(),fullName:"",nickName:"",gender:"M",dob:"",dobYearOnly:false,branchId:parentMember?.branchId??null,parentId:parentMember?.id??null,houseId:"H001",spouseId:null,bio:"",status:"active",dod:null,hijriDod:"",hijriAdj:0,email:"",whatsapp:""};
+  // Ensure parentId is always correctly set from parentMember
+  if(blank.parentId===undefined) blank.parentId=null;
+  const [f,setF]=useState(member?{...member}:blank);
+  const [tab,setTab]=useState("basic");
+  const [confirmDel,setConfirmDel]=useState(false);
+  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+  const handleDod=(val)=>{ set("dod",val); if(val){set("status","deceased"); const h=toHijri(val); if(h)set("hijriDod",h);} };
+
+  return (
+    <Sheet title={isNew?(parentMember?`Child of ${parentMember.fullName}`:"Add Member"):`Edit — ${member.fullName}`} onClose={onClose}
+      footer={<div style={{display:"flex",flexDirection:"column",gap:8}}>
+        <Btn style={{width:"100%",padding:14,fontSize:15,opacity:f.fullName.trim()?1:.4}} onClick={()=>f.fullName.trim()&&onSave(f)}>{isNew?"➕ Add Member":"💾 Save Changes"}</Btn>
+        {!isNew&&<div style={{display:"flex",gap:8}}>
+          {!confirmDel&&<Btn variant="danger" onClick={()=>setConfirmDel(true)} style={{flex:1,padding:11}}>🗑️ Delete Member</Btn>}
+          {confirmDel&&<><Btn variant="danger-solid" onClick={()=>onDelete(f.id)} style={{flex:1,padding:11}}>Confirm Delete</Btn><Btn variant="secondary" onClick={()=>setConfirmDel(false)} style={{padding:11}}>Cancel</Btn></>}
+        </div>}
+      </div>}>
+      <div style={{display:"flex",gap:5,marginBottom:16}}>
+        {[["basic","Basic"],["contact","Contact"],["house","House"],["death","Death"]].map(([id,lbl])=>(
+          <button key={id} onClick={()=>setTab(id)} style={{padding:"6px 11px",borderRadius:20,border:`1.5px solid ${tab===id?"#2D6A4F":"#E8E5DE"}`,background:tab===id?"#2D6A4F":"#fff",color:tab===id?"#fff":"#5C5B56",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{lbl}</button>
+        ))}
+      </div>
+      {tab==="basic"&&<>
+        <FG label="Full Name *"><FI value={f.fullName} onChange={e=>set("fullName",e.target.value)} placeholder="Full name"/></FG>
+        <FG label="Nickname"><FI value={f.nickName||""} onChange={e=>set("nickName",e.target.value)} placeholder="Optional"/></FG>
+        <FG label="Gender"><FS value={f.gender} onChange={e=>set("gender",e.target.value)}><option value="M">Male</option><option value="F">Female</option></FS></FG>
+        <FG label="Branch"><FS value={f.branchId??""} onChange={e=>set("branchId",e.target.value?Number(e.target.value):null)}><option value="">— Root / No Branch —</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name}{b.discontinued?" (discontinued)":""}</option>)}</FS></FG>
+        <FG label="Parent"><FS value={f.parentId||""} onChange={e=>set("parentId",e.target.value||null)}><option value="">— No parent (root) —</option>{members.filter(m=>m.id!==f.id&&m.id!=="moosa").map(m=><option key={m.id} value={m.id}>{m.fullName}</option>)}</FS></FG>
+        <FG label="Spouse"><FS value={f.spouseId||""} onChange={e=>set("spouseId",e.target.value||null)}><option value="">— None —</option>{members.filter(m=>m.id!==f.id).map(m=><option key={m.id} value={m.id}>{m.fullName}</option>)}</FS></FG>
+        <FG label="Date of Birth">
+          {f.dobYearOnly?<FI type="number" value={f.dob||""} onChange={e=>set("dob",e.target.value)} placeholder="e.g. 1950" min="1800" max="2025"/>:<FI type="date" value={f.dob||""} onChange={e=>set("dob",e.target.value)}/>}
+          <label style={{display:"flex",alignItems:"center",gap:6,marginTop:6,fontSize:13,color:"#5C5B56",cursor:"pointer"}}><input type="checkbox" checked={!!f.dobYearOnly} onChange={e=>set("dobYearOnly",e.target.checked)}/> Year only</label>
+        </FG>
+        <FG label="Bio"><FTA value={f.bio||""} onChange={e=>set("bio",e.target.value)} placeholder="Short biography..." rows={3} style={{resize:"vertical"}}/></FG>
+        <FG label="Status"><FS value={f.status} onChange={e=>set("status",e.target.value)}><option value="active">Living</option><option value="deceased">Deceased</option></FS></FG>
+      </>}
+      {tab==="contact"&&<>
+        <FG label="Email"><FI type="email" value={f.email||""} onChange={e=>set("email",e.target.value)} placeholder="email@example.com"/></FG>
+        <FG label="WhatsApp"><FI type="tel" value={f.whatsapp||""} onChange={e=>set("whatsapp",e.target.value)} placeholder="+91..."/></FG>
+      </>}
+      {tab==="house"&&<>
+        <FG label="House"><FS value={f.houseId||""} onChange={e=>set("houseId",e.target.value)}><option value="">— No house —</option>{houses.map(h=><option key={h.id} value={h.id}>{h.id} — {h.name}</option>)}</FS></FG>
+        {(()=>{const h=houses.find(x=>x.id===f.houseId);return h?<div style={{background:"#D8EDD4",border:"1px solid #B7D9C8",borderRadius:8,padding:14,fontSize:13}}><div style={{fontWeight:700,color:"#2D6A4F"}}>{h.name}</div><div style={{marginTop:2,color:"#3A7A5A"}}>{h.address}</div><code style={{marginTop:6,display:"inline-block",background:"#fff",padding:"2px 8px",borderRadius:4,fontSize:11}}>📍 {h.plusCode}</code></div>:null;})()}
+      </>}
+      {tab==="death"&&<>
+        <FG label="Date of Death" hint="Hijri date is auto-calculated."><FI type="date" value={f.dod||""} onChange={e=>handleDod(e.target.value)}/></FG>
+        <FG label="Hijri Date (auto-calculated — adjust if needed)"><FI value={f.hijriDod||""} onChange={e=>set("hijriDod",e.target.value)} placeholder="YYYY-MM-DD"/></FG>
+        <FG label="Hijri Adjustment (days)">
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <button onClick={()=>set("hijriAdj",(f.hijriAdj||0)-1)} style={{width:36,height:36,borderRadius:"50%",border:"1px solid #E8E5DE",background:"#F4F3EF",fontSize:18,cursor:"pointer"}}>−</button>
+            <span style={{fontSize:16,fontWeight:600,minWidth:24,textAlign:"center"}}>{f.hijriAdj||0}</span>
+            <button onClick={()=>set("hijriAdj",(f.hijriAdj||0)+1)} style={{width:36,height:36,borderRadius:"50%",border:"1px solid #E8E5DE",background:"#F4F3EF",fontSize:18,cursor:"pointer"}}>+</button>
+            <span style={{fontSize:12,color:"#9E9C94"}}>days</span>
+          </div>
+        </FG>
+      </>}
+    </Sheet>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// VISUAL TREE
+// ═══════════════════════════════════════════════════════════════
+const NW=96, HGAP=18, VGAP=88;
+
+// ── Long-press context menu ──────────────────────────────────
+function ContextMenu({member,onAddChild,onEdit,onDelete,onClose}) {
+  return (
+    <div style={{position:"fixed",inset:0,zIndex:800,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={onClose}>
+      <div style={{background:"#fff",borderRadius:18,padding:"6px 0",minWidth:220,boxShadow:"0 8px 40px rgba(0,0,0,.22)",border:"1px solid #E8E5DE",animation:"sheetUp .2s ease-out"}} onClick={e=>e.stopPropagation()}>
+        {/* Header */}
+        <div style={{padding:"12px 18px 10px",borderBottom:"1px solid #F4F3EF"}}>
+          <div style={{fontSize:13,fontWeight:700,color:"#1A1A18"}}>{member.fullName}</div>
+          {member.nickName&&<div style={{fontSize:11,color:"#9E9C94",marginTop:1}}>"{member.nickName}"</div>}
+        </div>
+        {/* Options */}
+        <button onClick={()=>{onAddChild(member);onClose();}} style={{width:"100%",padding:"14px 18px",border:"none",background:"none",textAlign:"left",cursor:"pointer",fontSize:14,fontWeight:500,display:"flex",alignItems:"center",gap:12,color:"#1A1A18",fontFamily:"inherit"}}>
+          <span style={{width:32,height:32,borderRadius:8,background:"#D8EDD4",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>➕</span>
+          Add child under {member.nickName||member.fullName.split(" ")[0]}
+        </button>
+        <button onClick={()=>{onEdit(member);onClose();}} style={{width:"100%",padding:"14px 18px",border:"none",background:"none",textAlign:"left",cursor:"pointer",fontSize:14,fontWeight:500,display:"flex",alignItems:"center",gap:12,color:"#1A1A18",fontFamily:"inherit"}}>
+          <span style={{width:32,height:32,borderRadius:8,background:"#EEF6F1",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>✏️</span>
+          Edit details
+        </button>
+        <div style={{height:1,background:"#F4F3EF",margin:"2px 0"}}/>
+        <button onClick={()=>{onDelete(member);onClose();}} style={{width:"100%",padding:"14px 18px",border:"none",background:"none",textAlign:"left",cursor:"pointer",fontSize:14,fontWeight:500,display:"flex",alignItems:"center",gap:12,color:"#DC2626",fontFamily:"inherit"}}>
+          <span style={{width:32,height:32,borderRadius:8,background:"#FEF2F2",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>🗑️</span>
+          Delete {member.nickName||member.fullName.split(" ")[0]}
+        </button>
+        <button onClick={onClose} style={{width:"100%",padding:"12px 18px",border:"none",background:"none",textAlign:"center",cursor:"pointer",fontSize:13,color:"#9E9C94",fontFamily:"inherit",borderTop:"1px solid #F4F3EF"}}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
+function useLongPress(onLongPress, onClick, delay=500) {
+  const timer = useRef(null);
+  const fired = useRef(false);
+  const start = (e) => {
+    fired.current = false;
+    timer.current = setTimeout(()=>{ fired.current=true; onLongPress(e); }, delay);
+  };
+  const cancel = () => { clearTimeout(timer.current); };
+  const tap = (e) => { if(!fired.current) onClick(e); };
+  return {
+    onMouseDown:start, onMouseUp:cancel, onMouseLeave:cancel,
+    onTouchStart:e=>{e.preventDefault();start(e);},
+    onTouchEnd:e=>{e.preventDefault();cancel();tap(e);},
+    onTouchMove:cancel,
+    onClick:e=>e.preventDefault(),
+  };
+}
+
+function PersonCard({member,branches,isHighlighted,onClick,onLongPress}) {
+  const color=member.status==="deceased"?"#90A4AE":bColor(member.branchId,branches);
+  const [pressed,setPressed]=useState(false);
+  const lp = useLongPress(
+    ()=>{ setPressed(false); onLongPress&&onLongPress(member); },
+    ()=>{ onClick&&onClick(member); },
+  );
+  return (
+    <div {...lp} style={{width:NW,background:pressed?"#F0FFF4":"#fff",borderRadius:12,border:`${isHighlighted?2.5:1.5}px solid ${isHighlighted?color:"#E0DDD6"}`,boxShadow:isHighlighted?`0 0 0 4px ${color}30,0 4px 14px rgba(0,0,0,.1)`:"0 2px 8px rgba(0,0,0,.07)",padding:"10px 7px 8px",display:"flex",flexDirection:"column",alignItems:"center",gap:5,opacity:member.status==="deceased"?.8:1,position:"relative",userSelect:"none",cursor:"pointer",WebkitTouchCallout:"none",WebkitUserSelect:"none"}}>
+      <div style={{position:"absolute",top:5,right:5,width:7,height:7,borderRadius:"50%",background:color}}/>
+      <div style={{width:42,height:42,borderRadius:"50%",background:color,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:700,fontSize:14,overflow:"hidden",flexShrink:0}}>{member.photo?<img src={member.photo} alt={member.fullName} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:ini(member.fullName)}</div>
+      <div style={{fontSize:11,fontWeight:600,textAlign:"center",lineHeight:1.3,wordBreak:"break-word",maxWidth:"100%"}}>{member.nickName||member.fullName.split(" ")[0]}</div>
+      <div style={{fontSize:10,color:"#9E9C94"}}>{member.status==="deceased"?"🕊 ":""}{member.dob?(member.dobYearOnly?member.dob:member.dob.slice(0,4)):""}</div>
+      <div style={{position:"absolute",bottom:4,left:"50%",transform:"translateX(-50%)",display:"flex",gap:2}}>
+        <div style={{width:3,height:3,borderRadius:"50%",background:"#D8D5CE"}}/>
+        <div style={{width:3,height:3,borderRadius:"50%",background:"#D8D5CE"}}/>
+        <div style={{width:3,height:3,borderRadius:"50%",background:"#D8D5CE"}}/>
+      </div>
+    </div>
+  );
+}
+
+function CoupleBlock({member,spouse,branches,highlightId,onProfile,onDrillDown,hasChildren,onLongPress}) {
+  const color=member.status==="deceased"?"#90A4AE":bColor(member.branchId,branches);
+  return (
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <PersonCard member={member} branches={branches} isHighlighted={member.id===highlightId} onClick={()=>onProfile(member)} onLongPress={onLongPress}/>
+        {spouse&&<><div style={{fontSize:14,color:"#C9A84C",marginBottom:18,flexShrink:0}}>♥</div><PersonCard member={spouse} branches={branches} isHighlighted={spouse.id===highlightId} onClick={()=>onProfile(spouse)} onLongPress={onLongPress}/></>}
+      </div>
+      {hasChildren&&<button onClick={e=>{e.stopPropagation();onDrillDown(member);}} style={{marginTop:8,width:28,height:28,borderRadius:"50%",border:`2px solid ${color}`,background:"#fff",color:color,fontSize:18,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 8px rgba(0,0,0,.1)",lineHeight:1}}>+</button>}
+    </div>
+  );
+}
+
+function VisualTreeLevel({rootId,members,branches,highlightId,onProfile,onDrillDown,user,onLongPress}) {
+  const root=members.find(m=>m.id===rootId);
+  if(!root) return <div style={{padding:40,color:"#9E9C94",textAlign:"center"}}>Member not found</div>;
+  const spouse=root.spouseId?members.find(m=>m.id===root.spouseId):null;
+  const children=members.filter(m=>m.parentId===rootId);
+  const rootBlockW=spouse?NW*2+8+22:NW;
+  const childTotalW=children.length*NW+Math.max(0,children.length-1)*HGAP;
+  const canvasW=Math.max(rootBlockW,childTotalW)+48;
+  const centerX=canvasW/2;
+  const childStartX=centerX-childTotalW/2;
+  const childCXs=children.map((_,i)=>childStartX+i*(NW+HGAP)+NW/2);
+  const midY=VGAP/2;
+  return (
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",width:canvasW,minWidth:canvasW}}>
+      <CoupleBlock member={root} spouse={spouse} branches={branches} highlightId={highlightId} onProfile={onProfile} onDrillDown={onDrillDown} hasChildren={false} onLongPress={onLongPress}/>
+      {children.length>0&&(
+        <svg width={canvasW} height={VGAP} style={{display:"block",overflow:"visible",flexShrink:0}}>
+          <line x1={centerX} y1={0} x2={centerX} y2={children.length===1?VGAP:midY} stroke="#C8C5BE" strokeWidth={1.5} strokeLinecap="round"/>
+          {children.length>1&&<line x1={childCXs[0]} y1={midY} x2={childCXs[childCXs.length-1]} y2={midY} stroke="#C8C5BE" strokeWidth={1.5} strokeLinecap="round"/>}
+          {childCXs.map((cx,i)=><line key={i} x1={cx} y1={children.length===1?0:midY} x2={cx} y2={VGAP} stroke="#C8C5BE" strokeWidth={1.5} strokeLinecap="round"/>)}
+        </svg>
+      )}
+      {children.length>0&&(
+        <div style={{display:"flex",gap:HGAP,alignItems:"flex-start",justifyContent:"center",width:canvasW}}>
+          {children.map(child=>{
+            const cs=child.spouseId?members.find(m=>m.id===child.spouseId):null;
+            const hk=members.some(m=>m.parentId===child.id)||can.addChildTo(user,child);
+            return <div key={child.id} data-memberid={child.id}><CoupleBlock member={child} spouse={cs} branches={branches} highlightId={highlightId} onProfile={onProfile} onDrillDown={onDrillDown} hasChildren={hk} onLongPress={onLongPress}/></div>;
+          })}
+        </div>
+      )}
+      {children.length===0&&<div style={{marginTop:28,fontSize:13,color:"#B0ABA3",textAlign:"center"}}>No children recorded</div>}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TREE SCREEN
+// ═══════════════════════════════════════════════════════════════
+function TreeScreen({db,updateDB,onProfile,highlightId,clearHighlight,user}) {
+  const {members,branches,houses}=db;
+  const [stack,setStack]=useState(["root"]);
+  const [showAdd,setShowAdd]=useState(false);
+  const [editingMember,setEditingMember]=useState(null);
+  const scrollRef=useRef(null);
+  const currentRootId=stack[stack.length-1];
+  const currentRoot=members.find(m=>m.id===currentRootId);
+
+  useEffect(()=>{
+    if(!highlightId)return;
+    const target=members.find(m=>m.id===highlightId); if(!target)return;
+    const ancestors=[]; let id=target.parentId;
+    while(id&&id!=="root"){ancestors.unshift(id);const m=members.find(x=>x.id===id);id=m?.parentId;}
+    setStack(["root",...ancestors]);
+    if(scrollRef.current)scrollRef.current.scrollTo({top:0,left:0,behavior:"smooth"});
+  },[highlightId]);
+
+  const drillDown=(member)=>{ clearHighlight(); setStack(s=>[...s,member.id]); if(scrollRef.current)scrollRef.current.scrollTo({top:0,left:0,behavior:"smooth"}); };
+  const goBack=()=>{ setStack(s=>s.slice(0,-1)); if(scrollRef.current)scrollRef.current.scrollTo({top:0,left:0,behavior:"smooth"}); };
+  const goToDepth=(idx)=>setStack(s=>s.slice(0,idx+1));
+  const breadcrumb=stack.map(id=>members.find(m=>m.id===id)).filter(Boolean);
+  const canAdd=user.role==="super_admin"||can.addChildTo(user,currentRoot||{branchId:null,id:"root"});
+  const [contextMember,setContextMember]=useState(null);
+  const [addChildTarget,setAddChildTarget]=useState(null);
+  const [confirmDeleteMember,setConfirmDeleteMember]=useState(null);
+  const handleEditSave=(data)=>{ updateDB("members",members.map(m=>m.id===data.id?data:m)); setEditingMember(null); };
+  const handleEditDelete=(id)=>{ updateDB("members",members.filter(m=>m.id!==id)); setEditingMember(null); if(stack.includes(id))setStack(["root"]); };
+  const onLongPress=(member)=>{ if(user.role==="super_admin"||can.editMember(user,member))setContextMember(member); };
+  const handleContextAddChild=(member)=>{ setAddChildTarget(member); };
+  const handleContextEdit=(member)=>{ setEditingMember(member); };
+  const handleContextDelete=(member)=>{ setConfirmDeleteMember(member); };
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",height:"100%",background:"#FAFAF8"}}>
+      <div style={{padding:"50px 16px 10px",flexShrink:0,background:"#FAFAF8",borderBottom:"1px solid #EDECEA"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+          {stack.length>1&&<button onClick={goBack} style={{width:34,height:34,borderRadius:"50%",border:"1.5px solid #E8E5DE",background:"#fff",fontSize:20,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontWeight:700,color:"#5C5B56",boxShadow:"0 1px 4px rgba(0,0,0,.07)",lineHeight:1}}>−</button>}
+          <div style={{flex:1,fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700}}>{stack.length===1?"Family Tree":currentRoot?.fullName||""}</div>
+          {canAdd&&<button onClick={()=>setShowAdd(true)} style={{padding:"7px 14px",background:"#2D6A4F",color:"#fff",border:"none",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",flexShrink:0,fontFamily:"inherit"}}>+ Add</button>}
+        </div>
+        {stack.length>1&&(
+          <div style={{display:"flex",alignItems:"center",gap:4,overflowX:"auto",paddingBottom:4,scrollbarWidth:"none"}}>
+            {breadcrumb.map((m,i)=>(
+              <span key={m.id} style={{display:"flex",alignItems:"center",gap:4,flexShrink:0}}>
+                <span onClick={()=>goToDepth(i)} style={{fontSize:11,fontWeight:i===breadcrumb.length-1?700:400,color:i===breadcrumb.length-1?"#2D6A4F":"#9E9C94",cursor:"pointer",whiteSpace:"nowrap"}}>{m.nickName||m.fullName.split(" ")[0]}</span>
+                {i<breadcrumb.length-1&&<span style={{color:"#C8C5BE",fontSize:10}}>›</span>}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      <div ref={scrollRef} style={{flex:1,overflow:"auto",padding:"24px 20px 80px",display:"flex",justifyContent:"center"}}>
+        <div style={{minWidth:"max-content",display:"flex",justifyContent:"center"}}>
+          <VisualTreeLevel rootId={currentRootId} members={members} branches={branches} highlightId={highlightId} onProfile={onProfile} onDrillDown={drillDown} user={user} onLongPress={onLongPress}/>
+        </div>
+      </div>
+      {/* Context menu on long press */}
+      {contextMember&&<ContextMenu member={contextMember} onAddChild={handleContextAddChild} onEdit={handleContextEdit} onDelete={handleContextDelete} onClose={()=>setContextMember(null)}/>}
+      {/* Add child modal (from + button or context menu) */}
+      {(showAdd||addChildTarget)&&<EditMemberModal member={null} isNew parentMember={addChildTarget||currentRoot} branches={branches} houses={houses} members={members} onSave={d=>{updateDB("members",[...members,d]);setShowAdd(false);setAddChildTarget(null);}} onDelete={()=>{}} onClose={()=>{setShowAdd(false);setAddChildTarget(null);}}/>}
+      {/* Edit member modal */}
+      {editingMember&&<EditMemberModal member={editingMember} isNew={false} branches={branches} houses={houses} members={members} onSave={handleEditSave} onDelete={handleEditDelete} onClose={()=>setEditingMember(null)}/>}
+      {/* Confirm delete */}
+      {confirmDeleteMember&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.6)",zIndex:900,display:"flex",alignItems:"center",justifyContent:"center",padding:"0 32px"}}>
+        <div style={{background:"#fff",borderRadius:18,padding:24,textAlign:"center",width:"100%",maxWidth:320}}>
+          <div style={{fontSize:40,marginBottom:12}}>🗑️</div>
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700,marginBottom:8}}>Delete {confirmDeleteMember.fullName}?</div>
+          <div style={{fontSize:13,color:"#9E9C94",marginBottom:20,lineHeight:1.5}}>This will permanently remove this member. Their children will remain but lose their parent link.</div>
+          <div style={{display:"flex",gap:10}}>
+            <button onClick={()=>setConfirmDeleteMember(null)} style={{flex:1,padding:12,border:"1px solid #E8E5DE",borderRadius:8,background:"#F4F3EF",fontWeight:600,cursor:"pointer",fontFamily:"inherit",fontSize:14}}>Cancel</button>
+            <button onClick={()=>{ updateDB("members",members.filter(m=>m.id!==confirmDeleteMember.id)); setConfirmDeleteMember(null); if(stack.includes(confirmDeleteMember.id))setStack(["root"]); }} style={{flex:1,padding:12,border:"none",borderRadius:8,background:"#DC2626",color:"#fff",fontWeight:600,cursor:"pointer",fontFamily:"inherit",fontSize:14}}>Delete</button>
+          </div>
+        </div>
+      </div>}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MEMBER PROFILE
+// ═══════════════════════════════════════════════════════════════
+function MemberProfile({member,db,onBack,onSelectMember,user,onSave,onDelete}) {
+  const {members,branches,houses}=db;
+  const [editing,setEditing]=useState(false);
+  const branch=branches.find(b=>b.id===member.branchId);
+  const house=houses.find(h=>h.id===member.houseId);
+  const children=members.filter(m=>m.parentId===member.id);
+  const spouse=member.spouseId?members.find(m=>m.id===member.spouseId):null;
+  const color=branch?branch.color:"#2D6A4F";
+  const canEdit=can.editMember(user,member);
+  const photoRef=useRef(null);
+
+  const handlePhotoUpload=(e)=>{
+    const file=e.target.files[0];
+    if(!file)return;
+    if(file.size>2*1024*1024){alert("Photo must be under 2MB");return;}
+    const reader=new FileReader();
+    reader.onload=(ev)=>{ onSave({...member,photo:ev.target.result}); };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemovePhoto=()=>{ onSave({...member,photo:null}); };
+
+  return (
+    <div style={{paddingBottom:20}}>
+      <div style={{background:`linear-gradient(180deg,#1A3A2A 0%,${color} 100%)`,padding:"52px 20px 80px",textAlign:"center",position:"relative"}}>
+        <button onClick={onBack} style={{position:"absolute",top:52,left:16,background:"rgba(255,255,255,.15)",border:"none",color:"#fff",width:36,height:36,borderRadius:"50%",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>‹</button>
+        {canEdit&&<button onClick={()=>setEditing(true)} style={{position:"absolute",top:52,right:16,background:"rgba(255,255,255,.2)",border:"1px solid rgba(255,255,255,.3)",color:"#fff",padding:"6px 14px",borderRadius:20,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>✏️ Edit</button>}
+        {/* Photo circle — tap to upload if canEdit */}
+        <div style={{position:"relative",width:90,height:90,margin:"0 auto 12px"}}>
+          <div style={{width:90,height:90,borderRadius:"50%",background:member.photo?"transparent":"rgba(255,255,255,.2)",border:"3px solid rgba(255,255,255,.5)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",cursor:canEdit?"pointer":"default"}}
+            onClick={()=>canEdit&&photoRef.current&&photoRef.current.click()}>
+            {member.photo
+              ?<img src={member.photo} alt={member.fullName} style={{width:"100%",height:"100%",objectFit:"cover"}}/>
+              :<div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                <span style={{fontSize:26,color:"#fff",fontWeight:700,fontFamily:"'Playfair Display',serif"}}>{ini(member.fullName)}</span>
+                {canEdit&&<span style={{fontSize:9,color:"rgba(255,255,255,.6)",letterSpacing:"0.05em"}}>TAP TO ADD</span>}
+              </div>
+            }
+          </div>
+          {canEdit&&member.photo&&(
+            <button onClick={handleRemovePhoto} style={{position:"absolute",top:0,right:0,width:22,height:22,borderRadius:"50%",background:"#DC2626",border:"2px solid #fff",color:"#fff",fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1}}>✕</button>
+          )}
+          {canEdit&&<input ref={photoRef} type="file" accept="image/*" onChange={handlePhotoUpload} style={{display:"none"}}/>}
+        </div>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:24,fontWeight:700,color:"#fff"}}>{member.fullName}</div>
+        {member.nickName&&<div style={{fontSize:14,color:"rgba(255,255,255,.7)",marginTop:2}}>"{member.nickName}"</div>}
+        {branch&&<div style={{display:"inline-flex",alignItems:"center",gap:6,marginTop:10,background:"rgba(255,255,255,.15)",padding:"5px 12px",borderRadius:20,fontSize:12,color:"#fff"}}><div style={{width:8,height:8,borderRadius:"50%",background:branch.color}}/>{branch.name}</div>}
+        {member.status==="deceased"&&<div style={{marginTop:8,fontSize:12,background:"rgba(0,0,0,.3)",padding:"4px 12px",borderRadius:20,color:"rgba(255,255,255,.8)",display:"inline-block"}}>🕊 Deceased</div>}
+      </div>
+      <div style={{padding:"0 16px",marginTop:-40}}>
+        <PCard>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+            <PStat label="Born" val={member.dobYearOnly?member.dob:fmtDate(member.dob)}/>
+            <PStat label="Age" val={member.status==="deceased"?"—":(member.dob?`${getAge(member.dob)} yrs`:"—")}/>
+            <PStat label="Gender" val={member.gender==="M"?"Male":"Female"}/>
+            <PStat label="Status" val={member.status==="deceased"?"Deceased":"Living"} color={member.status==="deceased"?"#9E9E9E":"#2D6A4F"}/>
+          </div>
+          {member.status==="deceased"&&member.dod&&(
+            <div style={{marginTop:14,paddingTop:14,borderTop:"1px solid #E8E5DE"}}>
+              <PStat label="Passed Away" val={fmtDate(member.dod)}/>
+              {member.hijriDod&&<div style={{fontSize:12,color:"#9E9C94",marginTop:3}}>Hijri: {member.hijriDod}{member.hijriAdj?` (${member.hijriAdj>0?"+":""}${member.hijriAdj})`:""}</div>}
+            </div>
+          )}
+        </PCard>
+        {member.bio&&<PCard><PLbl>About</PLbl><p style={{fontSize:14,lineHeight:1.6,color:"#5C5B56"}}>{member.bio}</p></PCard>}
+        {(member.email||member.whatsapp)&&(
+          <PCard><PLbl>Contact</PLbl>
+            {member.email&&<div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}><div style={{width:34,height:34,borderRadius:8,background:"#F4F3EF",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>✉️</div><div style={{fontSize:14}}>{member.email}</div></div>}
+            {member.whatsapp&&<div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:34,height:34,borderRadius:8,background:"#F4F3EF",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>💬</div><div style={{fontSize:14}}>{member.whatsapp}</div></div>}
+          </PCard>
+        )}
+        {house&&(
+          <PCard><PLbl>House</PLbl>
+            <div style={{background:"#D8EDD4",border:"1px solid #B7D9C8",borderRadius:8,padding:14}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#2D6A4F"}}>{house.id}</div>
+              <div style={{fontSize:15,fontWeight:600,marginTop:2}}>{house.name}</div>
+              <div style={{fontSize:13,color:"#3A7A5A",marginTop:2}}>{house.address}</div>
+              <code style={{fontSize:11,background:"#fff",padding:"2px 8px",borderRadius:4,marginTop:6,display:"inline-block"}}>📍 {house.plusCode}</code>
+            </div>
+          </PCard>
+        )}
+        {spouse&&<PCard><PLbl>Spouse</PLbl><MiniRow member={spouse} branches={branches} onClick={()=>onSelectMember(spouse)}/></PCard>}
+        {children.length>0&&<PCard><PLbl>Children ({children.length})</PLbl>{children.map(c=><MiniRow key={c.id} member={c} branches={branches} onClick={()=>onSelectMember(c)}/>)}</PCard>}
+      </div>
+      {editing&&<EditMemberModal member={member} isNew={false} branches={branches} houses={houses} members={members} onSave={d=>{onSave(d);setEditing(false);}} onDelete={id=>{onDelete(id);setEditing(false);onBack();}} onClose={()=>setEditing(false)}/>}
+    </div>
+  );
+}
+
+const MiniRow=({member,branches,onClick})=>{
+  const color=bColor(member.branchId,branches);
+  return <div onClick={onClick} style={{display:"flex",alignItems:"center",gap:10,padding:10,background:"#F4F3EF",borderRadius:8,marginBottom:8,cursor:"pointer"}}><div style={{width:36,height:36,borderRadius:"50%",background:member.status==="deceased"?"#B0BEC5":color,display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:12,fontWeight:600,flexShrink:0,overflow:"hidden"}}>{member.photo?<img src={member.photo} alt={member.fullName} style={{width:"100%",height:"100%",objectFit:"cover"}}/>:ini(member.fullName)}</div><div style={{flex:1}}><div style={{fontSize:14,fontWeight:500}}>{member.fullName}</div><div style={{fontSize:11,color:"#9E9C94"}}>{member.dob?(member.dobYearOnly?member.dob:member.dob.slice(0,4)):""}{member.status==="deceased"?" · 🕊":""}</div></div><span style={{color:"#C8C5BE",fontSize:18}}>›</span></div>;
+};
+
+// ═══════════════════════════════════════════════════════════════
+// HOME SCREEN
+// ═══════════════════════════════════════════════════════════════
+function HomeScreen({db,onNavigate,user}) {
+  const {members,branches,announcements,settings}=db;
+  const birthdays=settings.birthday_notifications?members.filter(m=>m.status!=="deceased"&&isBday(m.dob)):[];
+  const topAnn=[...announcements].sort((a,b)=>(b.priority==="high"?1:-1)-(a.priority==="high"?1:-1))[0];
+  return (
+    <div>
+      <div style={{padding:"52px 20px 14px",display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+        <div>
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:26,fontWeight:700,lineHeight:1.2}}>As-salāmu<br/><span style={{color:"#2D6A4F"}}>ʿalaykum</span></div>
+          <div style={{fontSize:13,color:"#9E9C94",marginTop:4}}>Welcome, {user.name.split(" ")[0]}</div>
+        </div>
+        <div style={{textAlign:"right"}}>
+          <div style={{width:42,height:42,borderRadius:"50%",background:"#2D6A4F",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:600,fontSize:14,marginLeft:"auto"}}>{ini(user.name)}</div>
+          <div style={{fontSize:10,color:"#9E9C94",marginTop:3,textTransform:"uppercase",letterSpacing:"0.05em"}}>{user.role.replace("_"," ")}</div>
+        </div>
+      </div>
+      {user.role==="super_admin"&&<div style={{margin:"0 16px 12px",background:"linear-gradient(135deg,#B5451B,#E57040)",color:"#fff",borderRadius:8,padding:"9px 14px",fontSize:12,display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:10,background:"rgba(255,255,255,.2)",padding:"2px 8px",borderRadius:10,fontWeight:700,letterSpacing:"0.05em"}}>SUPER ADMIN</span><span>Full editing & admin access</span></div>}
+      <div style={{padding:"0 16px 14px"}}>
+        {topAnn&&<div style={{padding:16,background:topAnn.priority==="high"?"linear-gradient(135deg,#1A3A2A,#2D6A4F)":"linear-gradient(135deg,#2C3E50,#4A5568)",borderRadius:14,color:"#fff",position:"relative",overflow:"hidden"}}>
+          <div style={{position:"absolute",top:-30,right:-30,width:100,height:100,background:"rgba(255,255,255,.06)",borderRadius:"50%"}}/>
+          {topAnn.priority==="high"&&<div style={{position:"absolute",top:12,right:14,fontSize:8,color:"#FFD700"}}>⬤ IMPORTANT</div>}
+          <div style={{fontSize:10,fontWeight:600,letterSpacing:"0.1em",opacity:.7,textTransform:"uppercase",marginBottom:6}}>📣 Announcement</div>
+          <div style={{fontFamily:"'Playfair Display',serif",fontSize:17,fontWeight:600,marginBottom:6}}>{topAnn.title}</div>
+          <div style={{fontSize:13,opacity:.85,lineHeight:1.5}}>{topAnn.content}</div>
+        </div>}
+      </div>
+      {birthdays.length>0&&<div style={{padding:"0 16px 14px"}}>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700,marginBottom:10}}>🎂 Today's Birthdays</div>
+        {birthdays.map(m=>{const b=branches.find(x=>x.id===m.branchId);return<div key={m.id} style={{display:"flex",alignItems:"center",gap:10,padding:10,background:"#fff",borderRadius:8,marginBottom:8,border:"1px solid #E8E5DE"}}><div style={{width:38,height:38,borderRadius:"50%",background:b?.color||"#607D8B",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontWeight:600,fontSize:13}}>{ini(m.fullName)}</div><div style={{flex:1}}><div style={{fontWeight:600,fontSize:14}}>{m.fullName}</div><div style={{fontSize:11,color:"#9E9C94"}}>{b?.name||"Root"}</div></div><div style={{fontSize:22}}>🎉</div></div>;})}
+      </div>}
+      <div style={{padding:"0 16px 14px"}}>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700,marginBottom:10}}>Quick Access</div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+          {[["🌳","Family Tree","tree"],[" 🤲","Hastham","hastham"],["📸","Photos","photos"],["⚙️","Admin","admin"]].map(([icon,lbl,id])=>(
+            <button key={id} onClick={()=>onNavigate(id)} style={{background:"#fff",border:"1px solid #E8E5DE",borderRadius:14,padding:"14px 8px",display:"flex",flexDirection:"column",alignItems:"center",gap:8,cursor:"pointer",boxShadow:"0 1px 4px rgba(0,0,0,.06)",fontFamily:"inherit"}}>
+              <div style={{fontSize:24}}>{icon}</div><div style={{fontSize:11,fontWeight:600,color:"#5C5B56",textAlign:"center"}}>{lbl}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+      {settings.quote_of_day&&<div style={{textAlign:"center",padding:"4px 0 20px"}}>
+        <div style={{color:"#C9A84C",fontSize:18,letterSpacing:6,opacity:.6}}>✦ ✦ ✦</div>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:13,color:"#9E9C94",fontStyle:"italic",marginTop:8,padding:"0 32px"}}>"{settings.quote_of_day}"</div>
+        {settings.quote_source&&<div style={{fontSize:11,color:"#C8C5BE",marginTop:4}}>— {settings.quote_source}</div>}
+      </div>}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SEARCH SCREEN
+// ═══════════════════════════════════════════════════════════════
+function SearchScreen({db,onGoToTree}) {
+  const {members,branches}=db;
+  const [q,setQ]=useState(""); const [filter,setFilter]=useState("all");
+  const results=(q||filter!=="all")?members.filter(m=>{
+    if(m.id==="moosa")return false;
+    if(filter==="deceased"&&m.status!=="deceased")return false;
+    if(filter==="living"&&m.status==="deceased")return false;
+    if(filter.startsWith("b_")&&m.branchId!==Number(filter.slice(2)))return false;
+    const bn=branches.find(b=>b.id===m.branchId)?.name||"";
+    const lq=q.toLowerCase();
+    return !lq||m.fullName.toLowerCase().includes(lq)||(m.nickName||"").toLowerCase().includes(lq)||bn.toLowerCase().includes(lq);
+  }):[];
+  return (
+    <div style={{padding:"52px 16px 20px"}}>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:26,fontWeight:700,marginBottom:14}}>Search</div>
+      <div style={{position:"relative",marginBottom:12}}>
+        <span style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)",fontSize:16}}>🔍</span>
+        <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search name, nickname, branch…" style={{width:"100%",padding:"13px 14px 13px 42px",border:"1.5px solid #E8E5DE",borderRadius:12,fontSize:15,fontFamily:"inherit",outline:"none",background:"#fff"}}/>
+      </div>
+      <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>
+        {[["all","All"],["living","Living"],["deceased","Deceased"]].map(([id,lbl])=>(
+          <button key={id} onClick={()=>setFilter(id)} style={{padding:"6px 12px",borderRadius:20,border:`1.5px solid ${filter===id?"#2D6A4F":"#E8E5DE"}`,background:filter===id?"#2D6A4F":"#fff",color:filter===id?"#fff":"#5C5B56",fontSize:12,cursor:"pointer",fontWeight:600,fontFamily:"inherit"}}>{lbl}</button>
+        ))}
+        {branches.map(b=><button key={b.id} onClick={()=>setFilter(`b_${b.id}`)} style={{padding:"6px 10px",borderRadius:20,border:`1.5px solid ${filter===`b_${b.id}`?b.color:"#E8E5DE"}`,background:filter===`b_${b.id}`?b.color:"#fff",color:filter===`b_${b.id}`?"#fff":"#5C5B56",fontSize:11,cursor:"pointer",fontWeight:600,fontFamily:"inherit"}}>{b.name.split(" ")[0]}</button>)}
+      </div>
+      {!q&&filter==="all"&&<div style={{textAlign:"center",padding:"40px 20px",color:"#9E9C94"}}><div style={{fontSize:40,marginBottom:10}}>🌿</div><div style={{fontSize:14}}>Type a name — results jump to the tree.</div></div>}
+      {results.map(m=>{const b=branches.find(x=>x.id===m.branchId);return(
+        <div key={m.id} onClick={()=>onGoToTree(m.id)} style={{display:"flex",alignItems:"center",gap:12,padding:12,background:"#fff",border:"1px solid #E8E5DE",borderRadius:10,marginBottom:8,cursor:"pointer"}}>
+          <div style={{width:42,height:42,borderRadius:"50%",background:b?.color||"#607D8B",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:13,fontWeight:600,flexShrink:0,opacity:m.status==="deceased"?.7:1}}>{ini(m.fullName)}</div>
+          <div style={{flex:1}}><div style={{fontSize:15,fontWeight:600}}>{m.fullName}{m.nickName?` "${m.nickName}"`:""}</div><div style={{fontSize:12,color:"#9E9C94",marginTop:2}}>{b?.name||"Root"} · {m.dob?(m.dobYearOnly?m.dob:m.dob.slice(0,4)):""}{m.status==="deceased"?" · 🕊":""}</div></div>
+          <span style={{fontSize:12,fontWeight:700,color:"#2D6A4F",background:"#D8EDD4",padding:"4px 10px",borderRadius:10,whiteSpace:"nowrap"}}>→ Tree</span>
+        </div>
+      );})}
+      {q&&results.length===0&&<div style={{textAlign:"center",padding:"40px 20px",color:"#9E9C94"}}><div style={{fontSize:36,marginBottom:10}}>🍃</div>No members found for "{q}"</div>}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ADMIN PANEL
+// ═══════════════════════════════════════════════════════════════
+function AdminPanel({db,updateDB,user,onToast}) {
+  const [section,setSection]=useState("overview");
+  if(!can.accessAdmin(user))return<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"60vh",padding:"40px 20px",textAlign:"center"}}><div style={{fontSize:64,marginBottom:20}}>🔒</div><div style={{fontFamily:"'Playfair Display',serif",fontSize:24,fontWeight:700,marginBottom:8}}>Access Denied</div><div style={{fontSize:14,color:"#9E9C94"}}>Admin panel is for Super Admins only.</div></div>;
+  const secs=[{id:"overview",icon:"📊",label:"Overview"},{id:"members",icon:"👥",label:"Members"},{id:"announcements",icon:"📣",label:"Announcements"},{id:"houses",icon:"🏠",label:"Houses"},{id:"branches",icon:"🌿",label:"Branches"},{id:"users",icon:"🔑",label:"Users"},{id:"settings",icon:"⚙️",label:"Settings"},{id:"backup",icon:"💾",label:"Backup"}];
+  return (
+    <div style={{paddingBottom:20}}>
+      <div style={{padding:"52px 16px 12px",background:"linear-gradient(135deg,#1A3A2A,#2D6A4F)",color:"#fff"}}>
+        <div style={{fontFamily:"'Playfair Display',serif",fontSize:24,fontWeight:700}}>Admin Panel</div>
+        <div style={{fontSize:13,opacity:.75,marginTop:2}}>Manage all family data</div>
+      </div>
+      <div style={{display:"flex",overflowX:"auto",borderBottom:"1px solid #E8E5DE",background:"#fff",scrollbarWidth:"none"}}>
+        {secs.map(s=><button key={s.id} onClick={()=>setSection(s.id)} style={{padding:"10px 13px",border:"none",background:"none",cursor:"pointer",fontFamily:"inherit",fontSize:12,fontWeight:600,color:section===s.id?"#2D6A4F":"#9E9C94",borderBottom:section===s.id?"2.5px solid #2D6A4F":"2.5px solid transparent",whiteSpace:"nowrap",flexShrink:0}}>{s.icon} {s.label}</button>)}
+      </div>
+      <div style={{padding:"16px 16px 20px"}}>
+        {section==="overview"&&<AdminOverview db={db}/>}
+        {section==="members"&&<AdminMembers db={db} updateDB={updateDB} onToast={onToast}/>}
+        {section==="announcements"&&<AdminAnn db={db} updateDB={updateDB} user={user} onToast={onToast}/>}
+        {section==="houses"&&<AdminHouses db={db} updateDB={updateDB} onToast={onToast}/>}
+        {section==="branches"&&<AdminBranches db={db} updateDB={updateDB} onToast={onToast}/>}
+        {section==="users"&&<AdminUsers db={db} updateDB={updateDB} onToast={onToast}/>}
+        {section==="settings"&&<AdminSettings db={db} updateDB={updateDB} onToast={onToast}/>}
+        {section==="backup"&&<AdminBackup db={db} onToast={onToast}/>}
+      </div>
+    </div>
+  );
+}
+
+function AdminOverview({db}) {
+  const stats=[{icon:"👥",label:"Members",val:db.members.length,c:"#2D6A4F"},{icon:"💚",label:"Living",val:db.members.filter(m=>m.status==="active").length,c:"#1B5E20"},{icon:"🕊",label:"Deceased",val:db.members.filter(m=>m.status==="deceased").length,c:"#607D8B"},{icon:"🌿",label:"Branches",val:db.branches.length,c:"#1565C0"},{icon:"🏠",label:"Houses",val:db.houses.length,c:"#B5451B"},{icon:"🔑",label:"Users",val:db.users.length,c:"#4A148C"}];
+  return <div><div style={{fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700,marginBottom:14}}>Database Overview</div><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>{stats.map(s=><div key={s.label} style={{background:"#fff",borderRadius:12,padding:"14px 16px",border:"1px solid #E8E5DE"}}><div style={{fontSize:20,marginBottom:6}}>{s.icon}</div><div style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:700,color:s.c}}>{s.val}</div><div style={{fontSize:12,color:"#9E9C94",marginTop:2}}>{s.label}</div></div>)}</div><div style={{marginTop:16,background:"#D8EDD4",borderRadius:10,padding:14,border:"1px solid #B7D9C8",fontSize:13,color:"#2D6A4F"}}>✅ All data saved to device (localStorage)<br/>✅ Works offline — no internet needed<br/>✅ Backup regularly from the Backup tab</div></div>;
+}
+
+function AdminMembers({db,updateDB,onToast}) {
+  const {members,branches,houses}=db;
+  const [editing,setEditing]=useState(null); const [adding,setAdding]=useState(false); const [q,setQ]=useState("");
+  const filtered=members.filter(m=>!q||m.fullName.toLowerCase().includes(q.toLowerCase()));
+  const handleSave=(data)=>{ const u=members.some(m=>m.id===data.id)?members.map(m=>m.id===data.id?data:m):[...members,data]; updateDB("members",u); setEditing(null);setAdding(false); onToast("✅ Saved"); };
+  const handleDel=(id)=>{ updateDB("members",members.filter(m=>m.id!==id)); setEditing(null); onToast("🗑️ Deleted"); };
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}><div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700}}>Members ({members.length})</div><Btn onClick={()=>setAdding(true)} style={{padding:"8px 14px",fontSize:13}}>+ Add</Btn></div>
+      <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Filter..." style={{width:"100%",padding:"10px 14px",border:"1.5px solid #E8E5DE",borderRadius:8,fontSize:14,fontFamily:"inherit",outline:"none",marginBottom:12}}/>
+      {filtered.map(m=>{const b=branches.find(x=>x.id===m.branchId);return(
+        <div key={m.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"#fff",border:"1px solid #E8E5DE",borderRadius:10,marginBottom:8}}>
+          <div style={{width:36,height:36,borderRadius:"50%",background:b?.color||"#607D8B",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:12,fontWeight:600,flexShrink:0,opacity:m.status==="deceased"?.7:1}}>{ini(m.fullName)}</div>
+          <div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{m.fullName}{m.nickName?` "${m.nickName}"`:""}</div><div style={{fontSize:11,color:"#9E9C94"}}>{b?.name||"Root"}{m.status==="deceased"?" · 🕊":""}</div></div>
+          <button onClick={()=>setEditing(m)} style={{padding:"5px 12px",background:"#EEF6F1",color:"#2D6A4F",border:"none",borderRadius:6,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",flexShrink:0}}>Edit</button>
+        </div>
+      );})}
+      {editing&&<EditMemberModal member={editing} isNew={false} branches={branches} houses={houses} members={members} onSave={handleSave} onDelete={handleDel} onClose={()=>setEditing(null)}/>}
+      {adding&&<EditMemberModal member={null} isNew branches={branches} houses={houses} members={members} onSave={handleSave} onDelete={()=>{}} onClose={()=>setAdding(false)}/>}
+    </div>
+  );
+}
+
+function AdminAnn({db,updateDB,user,onToast}) {
+  const {announcements}=db; const [editing,setEditing]=useState(null); const [adding,setAdding]=useState(false);
+  const blank={id:Date.now(),title:"",content:"",priority:"normal",createdBy:user.id,createdAt:new Date().toISOString().slice(0,10)};
+  const AnnForm=({item,onSave,onClose,onDel})=>{
+    const [f,setF]=useState({...item});
+    return <Sheet title={item.title?"Edit":"New Announcement"} onClose={onClose} footer={<div style={{display:"flex",gap:8}}>{item.title&&<Btn variant="danger" onClick={()=>onDel(f.id)} style={{padding:"11px 14px"}}>Delete</Btn>}<Btn style={{flex:1,padding:13}} onClick={()=>f.title.trim()&&f.content.trim()&&onSave(f)}>Save</Btn></div>}>
+      <FG label="Title"><FI value={f.title} onChange={e=>setF(p=>({...p,title:e.target.value}))}/></FG>
+      <FG label="Content"><FTA value={f.content} onChange={e=>setF(p=>({...p,content:e.target.value}))} rows={4} style={{resize:"vertical"}}/></FG>
+      <FG label="Priority"><FS value={f.priority} onChange={e=>setF(p=>({...p,priority:e.target.value}))}><option value="high">🔴 High (highlighted)</option><option value="normal">⚪ Normal</option></FS></FG>
+    </Sheet>;
+  };
+  const handleSave=(a)=>{ const u=announcements.some(x=>x.id===a.id)?announcements.map(x=>x.id===a.id?a:x):[...announcements,a]; updateDB("announcements",u); setEditing(null);setAdding(false); onToast("✅ Saved"); };
+  const handleDel=(id)=>{ updateDB("announcements",announcements.filter(a=>a.id!==id)); setEditing(null); onToast("🗑️ Deleted"); };
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700}}>Announcements</div><Btn onClick={()=>setAdding(true)} style={{padding:"8px 14px",fontSize:13}}>+ New</Btn></div>
+      {announcements.map(a=><div key={a.id} style={{background:"#fff",border:`1px solid ${a.priority==="high"?"#B7D9C8":"#E8E5DE"}`,borderRadius:12,padding:14,marginBottom:10,borderLeft:`4px solid ${a.priority==="high"?"#2D6A4F":"#C8C5BE"}`}}>
+        <div style={{display:"flex",justifyContent:"space-between"}}>
+          <div style={{flex:1}}>{a.priority==="high"&&<span style={{fontSize:10,background:"#D8EDD4",color:"#2D6A4F",padding:"2px 8px",borderRadius:10,fontWeight:700,display:"inline-block",marginBottom:4}}>HIGH PRIORITY</span>}<div style={{fontWeight:600,fontSize:15}}>{a.title}</div><div style={{fontSize:13,color:"#5C5B56",marginTop:4,lineHeight:1.5}}>{a.content}</div></div>
+          <button onClick={()=>setEditing(a)} style={{background:"#EEF6F1",color:"#2D6A4F",border:"none",borderRadius:6,fontSize:12,fontWeight:600,padding:"5px 10px",cursor:"pointer",flexShrink:0,marginLeft:8,fontFamily:"inherit"}}>Edit</button>
+        </div>
+      </div>)}
+      {editing&&<AnnForm item={editing} onSave={handleSave} onClose={()=>setEditing(null)} onDel={handleDel}/>}
+      {adding&&<AnnForm item={blank} onSave={handleSave} onClose={()=>setAdding(false)} onDel={()=>{}}/>}
+    </div>
+  );
+}
+
+function AdminHouses({db,updateDB,onToast}) {
+  const {houses}=db; const [editing,setEditing]=useState(null); const [adding,setAdding]=useState(false);
+  const blank={id:"H"+String(Date.now()).slice(-3),name:"",address:"",plusCode:""};
+  const HouseForm=({item,onSave,onClose,onDel})=>{
+    const [f,setF]=useState({...item});
+    return <Sheet title={item.name?"Edit House":"New House"} onClose={onClose} footer={<div style={{display:"flex",gap:8}}>{item.name&&<Btn variant="danger" onClick={()=>onDel(f.id)} style={{padding:"11px 14px"}}>Delete</Btn>}<Btn style={{flex:1,padding:13}} onClick={()=>f.name.trim()&&onSave(f)}>Save</Btn></div>}>
+      <FG label="House ID"><FI value={f.id} onChange={e=>setF(p=>({...p,id:e.target.value}))}/></FG>
+      <FG label="House Name *"><FI value={f.name} onChange={e=>setF(p=>({...p,name:e.target.value}))}/></FG>
+      <FG label="Address"><FI value={f.address} onChange={e=>setF(p=>({...p,address:e.target.value}))}/></FG>
+      <FG label="Google Plus Code"><FI value={f.plusCode} onChange={e=>setF(p=>({...p,plusCode:e.target.value}))} placeholder="e.g. 7JXH+6C"/></FG>
+    </Sheet>;
+  };
+  const handleSave=(h)=>{ const u=houses.some(x=>x.id===h.id)?houses.map(x=>x.id===h.id?h:x):[...houses,h]; updateDB("houses",u); setEditing(null);setAdding(false); onToast("✅ House saved"); };
+  const handleDel=(id)=>{ updateDB("houses",houses.filter(h=>h.id!==id)); setEditing(null); onToast("🗑️ Deleted"); };
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}><div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700}}>Houses ({houses.length})</div><Btn onClick={()=>setAdding(true)} style={{padding:"8px 14px",fontSize:13}}>+ Add</Btn></div>
+      {houses.map(h=><div key={h.id} style={{background:"#fff",border:"1px solid #E8E5DE",borderRadius:12,padding:14,marginBottom:10}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+          <div><div style={{fontSize:11,fontWeight:700,color:"#2D6A4F"}}>{h.id}</div><div style={{fontWeight:600,fontSize:15,marginTop:2}}>{h.name}</div><div style={{fontSize:13,color:"#5C5B56",marginTop:2}}>{h.address}</div><code style={{fontSize:11,background:"#F4F3EF",padding:"2px 8px",borderRadius:4,marginTop:6,display:"inline-block"}}>📍 {h.plusCode}</code></div>
+          <button onClick={()=>setEditing(h)} style={{background:"#EEF6F1",color:"#2D6A4F",border:"none",borderRadius:6,fontSize:12,fontWeight:600,padding:"5px 10px",cursor:"pointer",fontFamily:"inherit"}}>Edit</button>
+        </div>
+      </div>)}
+      {editing&&<HouseForm item={editing} onSave={handleSave} onClose={()=>setEditing(null)} onDel={handleDel}/>}
+      {adding&&<HouseForm item={blank} onSave={handleSave} onClose={()=>setAdding(false)} onDel={()=>{}}/>}
+    </div>
+  );
+}
+
+function AdminBranches({db,updateDB,onToast}) {
+  const {branches}=db;
+  const move=(idx,dir)=>{ const arr=[...branches].sort((a,b)=>a.order-b.order); const ni=idx+dir; if(ni<0||ni>=arr.length)return; const tmp=arr[idx].order; arr[idx]={...arr[idx],order:arr[ni].order}; arr[ni]={...arr[ni],order:tmp}; updateDB("branches",arr); onToast("✅ Updated"); };
+  const toggle=(id)=>{ updateDB("branches",branches.map(b=>b.id===id?{...b,discontinued:!b.discontinued}:b)); onToast("✅ Updated"); };
+  const sorted=[...branches].sort((a,b)=>a.order-b.order);
+  return (
+    <div>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700,marginBottom:6}}>Branches</div>
+      <div style={{fontSize:13,color:"#9E9C94",marginBottom:14}}>Use arrows to reorder. Toggle discontinued status.</div>
+      {sorted.map((b,i)=><div key={b.id} style={{background:"#fff",border:"1px solid #E8E5DE",borderRadius:12,padding:"12px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
+        <div style={{display:"flex",flexDirection:"column",gap:3}}>
+          <button onClick={()=>move(i,-1)} disabled={i===0} style={{width:22,height:22,border:"1px solid #E8E5DE",background:i===0?"#F9F9F9":"#fff",borderRadius:4,cursor:i===0?"default":"pointer",fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",color:i===0?"#C8C5BE":"#5C5B56"}}>▲</button>
+          <button onClick={()=>move(i,1)} disabled={i===sorted.length-1} style={{width:22,height:22,border:"1px solid #E8E5DE",background:i===sorted.length-1?"#F9F9F9":"#fff",borderRadius:4,cursor:i===sorted.length-1?"default":"pointer",fontSize:11,display:"flex",alignItems:"center",justifyContent:"center",color:i===sorted.length-1?"#C8C5BE":"#5C5B56"}}>▼</button>
+        </div>
+        <div style={{width:14,height:14,borderRadius:"50%",background:b.color,flexShrink:0}}/>
+        <div style={{flex:1}}><div style={{fontWeight:600,fontSize:14}}>{b.name}</div><div style={{fontSize:11,color:"#9E9C94"}}>Order #{b.order}</div></div>
+        <button onClick={()=>toggle(b.id)} style={{padding:"5px 10px",border:"1px solid",borderColor:b.discontinued?"#FECACA":"#E8E5DE",background:b.discontinued?"#FEF2F2":"#F4F3EF",color:b.discontinued?"#DC2626":"#5C5B56",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>{b.discontinued?"Discontinued":"Active"}</button>
+      </div>)}
+    </div>
+  );
+}
+
+function AdminUsers({db,updateDB,onToast}) {
+  const {users,branches}=db; const [editing,setEditing]=useState(null);
+  const UserForm=({item,onSave,onClose})=>{
+    const [f,setF]=useState({...item});
+    return <Sheet title={`Edit — ${item.name}`} onClose={onClose} footer={<Btn style={{width:"100%",padding:13}} onClick={()=>onSave(f)}>Save Changes</Btn>}>
+      <FG label="Name"><FI value={f.name} onChange={e=>setF(p=>({...p,name:e.target.value}))}/></FG>
+      <FG label="Email"><FI value={f.email} onChange={e=>setF(p=>({...p,email:e.target.value}))}/></FG>
+      <FG label="Role"><FS value={f.role} onChange={e=>setF(p=>({...p,role:e.target.value}))}><option value="super_admin">Super Admin</option><option value="branch_admin">Branch Admin</option><option value="member">Member</option></FS></FG>
+      <FG label="Branch"><FS value={f.branchId||""} onChange={e=>setF(p=>({...p,branchId:e.target.value?Number(e.target.value):null}))}><option value="">— No branch —</option>{branches.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}</FS></FG>
+    </Sheet>;
+  };
+  const rColors={super_admin:"#B5451B",branch_admin:"#1565C0",member:"#2D6A4F"};
+  return (
+    <div>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700,marginBottom:14}}>Users & Roles</div>
+      {users.map(u=>{const b=branches.find(x=>x.id===u.branchId);return(
+        <div key={u.id} style={{background:"#fff",border:"1px solid #E8E5DE",borderRadius:12,padding:14,marginBottom:10}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+            <div style={{display:"flex",gap:10,alignItems:"center"}}>
+              <div style={{width:38,height:38,borderRadius:"50%",background:rColors[u.role]||"#607D8B",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontSize:13,fontWeight:600,flexShrink:0}}>{ini(u.name)}</div>
+              <div><div style={{fontWeight:600,fontSize:14}}>{u.name}</div><div style={{fontSize:12,color:"#9E9C94"}}>{u.email}</div><div style={{marginTop:4,display:"flex",gap:6}}><span style={{fontSize:10,background:rColors[u.role]+"22",color:rColors[u.role],padding:"2px 8px",borderRadius:10,fontWeight:700,textTransform:"uppercase"}}>{u.role.replace("_"," ")}</span>{b&&<span style={{fontSize:10,color:"#9E9C94"}}>{b.name}</span>}</div></div>
+            </div>
+            <button onClick={()=>setEditing(u)} style={{background:"#EEF6F1",color:"#2D6A4F",border:"none",borderRadius:6,fontSize:12,fontWeight:600,padding:"5px 10px",cursor:"pointer",fontFamily:"inherit"}}>Edit</button>
+          </div>
+        </div>
+      );})}
+      {editing&&<UserForm item={editing} onSave={u=>{updateDB("users",users.map(x=>x.id===u.id?u:x));setEditing(null);onToast("✅ Updated");}} onClose={()=>setEditing(null)}/>}
+    </div>
+  );
+}
+
+function AdminSettings({db,updateDB,onToast}) {
+  const {settings}=db; const [f,setF]=useState({...settings});
+  const toggle=(k)=>setF(p=>({...p,[k]:!p[k]}));
+  const set=(k,v)=>setF(p=>({...p,[k]:v}));
+  const Toggle=({label,k,hint})=><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:"1px solid #F4F3EF"}}><div><div style={{fontSize:14,fontWeight:500}}>{label}</div>{hint&&<div style={{fontSize:12,color:"#9E9C94",marginTop:2}}>{hint}</div>}</div><div onClick={()=>toggle(k)} style={{width:44,height:24,borderRadius:12,background:f[k]?"#2D6A4F":"#C8C5BE",position:"relative",cursor:"pointer",transition:"background .2s",flexShrink:0}}><div style={{width:18,height:18,borderRadius:"50%",background:"#fff",position:"absolute",top:3,left:f[k]?"23px":"3px",transition:"left .2s",boxShadow:"0 1px 3px rgba(0,0,0,.2)"}}/></div></div>;
+  return (
+    <div>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700,marginBottom:4}}>Settings</div>
+      <div style={{fontSize:13,color:"#9E9C94",marginBottom:16}}>Changes apply instantly without rebuilding.</div>
+      <PCard><PLbl>Feature Flags</PLbl><Toggle label="Birthday Notifications" k="birthday_notifications" hint="Show on home screen"/><Toggle label="Hastham (Charity)" k="feature_charity_enabled"/><Toggle label="Photo Gallery" k="feature_photos_enabled"/></PCard>
+      <PCard><PLbl>Content</PLbl><FG label="Quote of the Day"><FI value={f.quote_of_day||""} onChange={e=>set("quote_of_day",e.target.value)}/></FG><FG label="Quote Source"><FI value={f.quote_source||""} onChange={e=>set("quote_source",e.target.value)}/></FG></PCard>
+      <PCard><PLbl>App Info</PLbl><FG label="App Name"><FI value={f.app_name||""} onChange={e=>set("app_name",e.target.value)}/></FG><FG label="Admin Email"><FI value={f.contact_admin_email||""} onChange={e=>set("contact_admin_email",e.target.value)}/></FG></PCard>
+      <Btn onClick={()=>{updateDB("settings",f);onToast("✅ Settings saved");}} style={{width:"100%",padding:13,marginTop:4}}>Save All Settings</Btn>
+    </div>
+  );
+}
+
+function AdminBackup({db,onToast}) {
+  const handleExport=()=>{
+    const backup={exportedAt:new Date().toISOString(),version:"4.0",tables:{members:db.members,branches:db.branches,houses:db.houses,announcements:db.announcements,users:db.users,settings:db.settings}};
+    const blob=new Blob([JSON.stringify(backup,null,2)],{type:"application/json"});
+    const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url; a.download=`family_tree_backup_${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(url);
+    onToast("💾 Backup downloaded");
+  };
+  const handleImport=(e)=>{ const file=e.target.files[0]; if(!file)return; const r=new FileReader(); r.onload=(ev)=>{ try{JSON.parse(ev.target.result);onToast("✅ Valid backup — use developer to restore");}catch{onToast("❌ Invalid file");} }; r.readAsText(file); };
+  return (
+    <div>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:18,fontWeight:700,marginBottom:14}}>Backup & Restore</div>
+      <PCard><PLbl>Current Data</PLbl><div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}><div style={{background:"#F4F3EF",borderRadius:8,padding:12,textAlign:"center"}}><div style={{fontFamily:"'Playfair Display',serif",fontSize:24,fontWeight:700,color:"#2D6A4F"}}>{db.members.length}</div><div style={{fontSize:12,color:"#9E9C94"}}>Members</div></div><div style={{background:"#F4F3EF",borderRadius:8,padding:12,textAlign:"center"}}><div style={{fontFamily:"'Playfair Display',serif",fontSize:24,fontWeight:700,color:"#2D6A4F"}}>~{Math.round(JSON.stringify(db).length/1024)}kb</div><div style={{fontSize:12,color:"#9E9C94"}}>Data size</div></div></div></PCard>
+      <PCard><PLbl>Export</PLbl><div style={{fontSize:13,color:"#5C5B56",marginBottom:12,lineHeight:1.6}}>Download all family data as a JSON file. Keep this safe — it's your backup.</div><Btn onClick={handleExport} style={{width:"100%",padding:13}}>💾 Download backup.json</Btn></PCard>
+      <PCard><PLbl>Import</PLbl><label style={{display:"block",width:"100%",padding:13,background:"#F4F3EF",border:"1.5px dashed #C8C5BE",borderRadius:8,textAlign:"center",cursor:"pointer",fontSize:14,fontWeight:600,color:"#5C5B56",fontFamily:"inherit"}}>📂 Choose backup.json<input type="file" accept=".json" onChange={handleImport} style={{display:"none"}}/></label></PCard>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PHOTOS + HASTHAM
+// ═══════════════════════════════════════════════════════════════
+function PhotosScreen({user}) {
+  const albums=[{id:1,name:"Old Photos",cover:"📷",bg:"linear-gradient(135deg,#FFF3E0,#FFE0B2)",count:2},{id:2,name:"Weddings",cover:"💒",bg:"linear-gradient(135deg,#FCE4EC,#F8BBD0)",count:1},{id:3,name:"Events",cover:"🎉",bg:"linear-gradient(135deg,#E8F5E9,#C8E6C9)",count:1},{id:4,name:"Childhood",cover:"🌟",bg:"linear-gradient(135deg,#E3F2FD,#BBDEFB)",count:0}];
+  return <div><div style={{padding:"52px 20px 14px"}}><div style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:700}}>Photos</div><div style={{fontSize:13,color:"#9E9C94",marginTop:4}}>Family memories & albums</div></div>{user.role==="super_admin"&&<div style={{padding:"0 16px 14px"}}><button style={{width:"100%",padding:12,background:"#2D6A4F",color:"#fff",border:"none",borderRadius:8,fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>+ Upload Photo</button></div>}<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,padding:"0 16px"}}>{albums.map(a=><div key={a.id} style={{background:"#fff",border:"1px solid #E8E5DE",borderRadius:14,overflow:"hidden",cursor:"pointer"}}><div style={{height:110,display:"flex",alignItems:"center",justifyContent:"center",fontSize:48,background:a.bg}}>{a.cover}</div><div style={{padding:"10px 12px"}}><div style={{fontSize:14,fontWeight:600}}>{a.name}</div><div style={{fontSize:12,color:"#9E9C94",marginTop:2}}>{a.count} photos</div></div></div>)}</div></div>;
+}
+
+function HashthamScreen({db,user}) {
+  if(!db.settings.feature_charity_enabled)return<div style={{textAlign:"center",padding:"60px 20px",color:"#9E9C94"}}><div style={{fontSize:48,marginBottom:12}}>🔧</div>Disabled by admin.</div>;
+  if(!can.accessHastham(user))return<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"60vh",padding:"40px 20px",textAlign:"center"}}><div style={{fontSize:64,marginBottom:20}}>🔒</div><div style={{fontFamily:"'Playfair Display',serif",fontSize:24,fontWeight:700,marginBottom:8}}>Restricted Access</div><div style={{fontSize:14,color:"#9E9C94"}}>Contact {db.settings.contact_admin_email||"a Super Admin"}.</div></div>;
+  return<div style={{padding:"52px 16px 20px"}}><div style={{fontFamily:"'Playfair Display',serif",fontSize:28,fontWeight:700,marginBottom:4}}>Hastham</div><div style={{fontSize:13,color:"#9E9C94",marginBottom:24}}>Family Charity Module</div><PCard><PLbl>Total Collected</PLbl><div style={{fontFamily:"'Playfair Display',serif",fontSize:36,fontWeight:700,color:"#2D6A4F"}}>₹ 0</div><div style={{fontSize:13,color:"#9E9C94",marginTop:4}}>Current year</div></PCard><div style={{textAlign:"center",padding:20,color:"#9E9C94",fontSize:14}}>🤲 Donation tracking coming soon</div></div>;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ROOT APP
+// ═══════════════════════════════════════════════════════════════
+function App() {
+  const [db,updateDB]=useDB();
+  const [tab,setTab]=useState("home");
+  const [profileStack,setProfileStack]=useState([]);
+  const [toast,setToast]=useState(null);
+  const [treeHighlight,setTreeHighlight]=useState(null);
+  const user=SESSION_USER;
+
+  const handleSave=(data)=>{
+    if(!db)return;
+    const u=db.members.some(m=>m.id===data.id)?db.members.map(m=>m.id===data.id?data:m):[...db.members,data];
+    updateDB("members",u);
+    // Refresh entire profile stack with updated data so name change shows immediately
+    setProfileStack(s=>s.map(p=>p.id===data.id?data:p));
+    setToast("✅ Saved — "+data.fullName);
+  };
+  const handleDelete=(id)=>{ if(!db)return; updateDB("members",db.members.filter(m=>m.id!==id)); setProfileStack([]); setToast("🗑️ Deleted"); };
+  const openProfile=(m)=>setProfileStack(s=>[...s,m]);
+  const closeProfile=()=>setProfileStack(s=>s.slice(0,-1));
+  const navigate=(t)=>{ setTab(t); setProfileStack([]); };
+  const goToTree=(mid)=>{ setTreeHighlight(mid); setTab("tree"); setProfileStack([]); };
+
+  if(!db)return<div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100vh"}}><div style={{fontFamily:"'Playfair Display',serif",fontSize:24,fontWeight:700,color:"#2D6A4F",marginBottom:10}}>Family Tree</div><div style={{fontSize:13,color:"#9E9C94"}}>Loading…</div></div>;
+
+  const freshProfile=profileStack.length>0?(db.members.find(m=>m.id===profileStack[profileStack.length-1].id)||profileStack[profileStack.length-1]):null;
+  const TABS=[{id:"home",icon:"🏠",label:"Home"},{id:"tree",icon:"🌳",label:"Tree"},{id:"search",icon:"🔍",label:"Search"},{id:"photos",icon:"📸",label:"Photos"},{id:"admin",icon:"⚙️",label:"Admin"}];
+
+  return (
+    <>
+      <div style={{display:"flex",flexDirection:"column",height:"100vh",maxWidth:430,margin:"0 auto",background:"#FAFAF8",position:"relative",overflow:"hidden"}}>
+        <div style={{flex:1,overflow:"hidden",position:"relative"}}>
+          {freshProfile&&<div style={{position:"absolute",inset:0,background:"#FAFAF8",zIndex:20,overflowY:"auto"}}><MemberProfile member={freshProfile} db={db} onBack={closeProfile} onSelectMember={openProfile} user={user} onSave={handleSave} onDelete={handleDelete}/></div>}
+          <div style={{height:"100%",overflow:tab==="tree"?"hidden":"auto"}}>
+            {tab==="home"&&<HomeScreen db={db} onNavigate={navigate} user={user}/>}
+            {tab==="tree"&&<TreeScreen db={db} updateDB={updateDB} onProfile={openProfile} highlightId={treeHighlight} clearHighlight={()=>setTreeHighlight(null)} user={user}/>}
+            {tab==="search"&&<SearchScreen db={db} onGoToTree={goToTree}/>}
+            {tab==="photos"&&<PhotosScreen user={user}/>}
+            {tab==="admin"&&<AdminPanel db={db} updateDB={updateDB} user={user} onToast={setToast}/>}
+            {tab==="hastham"&&<HashthamScreen db={db} user={user}/>}
+          </div>
+        </div>
+        <nav style={{flexShrink:0,background:"rgba(255,255,255,.96)",backdropFilter:"blur(20px)",borderTop:"1px solid #E8E5DE",display:"flex",padding:"8px 0",zIndex:50}}>
+          {TABS.map(({id,icon,label})=>(
+            <button key={id} onClick={()=>navigate(id)} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3,padding:"6px 4px",border:"none",background:"none",cursor:"pointer"}}>
+              <span style={{fontSize:19}}>{icon}</span>
+              <span style={{fontSize:10,fontWeight:600,color:tab===id&&!freshProfile?"#2D6A4F":"#9E9C94"}}>{label}</span>
+            </button>
+          ))}
+        </nav>
+      </div>
+      {toast&&<Toast msg={toast} onDone={()=>setToast(null)}/>}
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
